@@ -24,45 +24,6 @@ import tables as tb
 from SimLib import Encoder_tools as ET
 
 
-# def L1_sch_WP(SiPM_Matrix_Slice, sim_info):
-#
-#     data_out   = []
-#     param = sim_info['Param']
-#     DATA  = sim_info['DATA']
-#
-#     env = simpy.Environment()
-#
-#     n_asics = len(SiPM_Matrix_Slice)
-#
-#     L1 = DAQ.L1_WAVELET( env = env,
-#                  out_stream  = data_out,
-#                  param       = param,
-#                  SiPM_Matrix = SiPM_Matrix_Slice)
-#
-#     block_size = param.P['TOFPET']['n_channels']
-#
-#     ASICS_L1 = [DAQ.FE_asic(
-#                     env     = env,
-#                     param   = param,
-#                     data    = DATA[:,SiPM_Matrix_Slice[i]],
-#                     timing  = sim_info['timing'],
-#                     sensors = sim_info['Param'].sensors[SiPM_Matrix_Slice[i]],
-#                     asic_id = i)
-#                 for i in range(n_asics)]
-#
-#     for i in range(len(ASICS_L1)):
-#         ASICS_L1[i].Link.out = L1
-#
-#     # Run Simulation for a very long time to force flush of FIFOs
-#     env.run(until = 100E9)
-#
-#     OUTPUT_L1     = L1()
-#     OUTPUT_ASICS  = [ASICS_L1[i]() for i in range(n_asics)]
-#
-#     print "L1 finished"
-#
-#     return {'L1_out':OUTPUT_L1, 'ASICS_out':OUTPUT_ASICS}
-
 
 def L1_exec(SiPM_Matrix_Slice, sim_info):
     """ Executes L1 behavior in Simulation
@@ -88,8 +49,11 @@ def L1_exec(SiPM_Matrix_Slice, sim_info):
                              sim_info    = sim_info,
                              SiPM_Matrix = SiPM_Matrix_Slice)
 
-    DRAIN_instance = DAQ.DATA_drain(env        = env,
-                                    out_stream = data_out)
+    DRAIN_instance = DAQ.DATA_drain( out_stream = data_out,
+                                            env = env)
+    # Wiring
+    L1_instance.ETH_OUT.out = DRAIN_instance
+
 
     # Run Simulation for a very long time (100sec) to force flush of FIFOs
     env.run(until = 100E9)
@@ -120,7 +84,7 @@ def DAQ_sim_CUBE(sim_info):
 
     # Multiprocess Pool Management
     kargs = {'sim_info':sim_info}
-    DAQ_map = partial(L1_sch_WP, **kargs)
+    DAQ_map = partial(L1_exec, **kargs)
 
     start_time = time.time()
     # Multiprocess Work
@@ -141,20 +105,33 @@ def DAQ_sim_CUBE(sim_info):
 
 
 
-def DAQ_OUTPUT_processing_CUBE(SIM_OUT,n_L1,n_asics,CG):
-    data, in_time, out_time, L1_id, lostL1a, lostL1b = [],[],[],[],[],[]
-    lost_producers= np.array([]).reshape(0,1)
-    lost_channels = np.array([]).reshape(0,1)
-    lost_outlink = np.array([]).reshape(0,1)
+def DAQ_OUTPUT_processing_CUBE( POOL_OUT, CG):
+    """ POOL_OUT = Simulation Pool Output
+    """
+
+    # Translate Simulation Output into an array for Data recovery
+    SIM_OUT = {'L1_out':[], 'ASICS_out':[]}
+    for i in range(len(POOL_OUT)):
+        SIM_OUT['L1_out'].append(POOL_OUT[i]['L1_out'])
+        for j in range(len(POOL_OUT[i]['ASICS_out'])):
+            SIM_OUT['ASICS_out'].append(POOL_OUT[i]['ASICS_out'][j])
+    n_L1    = np.array(CG['L1']['L1_mapping_O']).shape[0]
+    n_asics = np.sum(np.array(CG['L1']['L1_mapping_O']))
+
+
+    data, in_time, out_time, L1_id = [],[],[],[]
+    lost_producers  = np.array([]).reshape(0,1)
+    lost_channels   = np.array([]).reshape(0,1)
+    lost_outlink    = np.array([]).reshape(0,1)
+    log_channels    = np.array([]).reshape(0,2)
+    log_outlink     = np.array([]).reshape(0,2)
+
     SIM_OUT_L1      = np.array(SIM_OUT['L1_out'])
     SIM_OUT_ASICs   = np.array(SIM_OUT['ASICS_out'])
-    logL1_IN = np.array([]).reshape(0,2)
-    logL1_OUT = np.array([]).reshape(0,2)
-    #logC = np.array([]).reshape(0,2)
-    log_channels = np.array([]).reshape(0,2)
-    log_outlink = np.array([]).reshape(0,2)
-    #L1_frag     = np.array([]).reshape(0,n_L1)
-    #L1_frag_aux = np.zeros((1,n_L1),dtype=int)
+    lost_FIFOIN     = np.array([]).reshape(0,1)
+    lost_ETHOUT     = np.array([]).reshape(0,1)
+    log_FIFOIN      = np.array([]).reshape(0,2)
+    log_ETHOUT      = np.array([]).reshape(0,2)
 
 
     # Gather information from ASICS layer
@@ -172,15 +149,16 @@ def DAQ_OUTPUT_processing_CUBE(SIM_OUT,n_L1,n_asics,CG):
 
     # Gather information from L1 layer
     for j in range(n_L1):
-
-        #lostL1a.append(SIM_OUT_L1[j]['lostL1a'])
-        lostL1b.append(SIM_OUT_L1[j]['logETH_OUT'])
-        logL1_IN  = np.vstack([logL1_IN,SIM_OUT_L1[j]['logFIFO_IN']])
-        logL1_OUT = np.vstack([logL1_OUT,SIM_OUT_L1[j]['logETH_OUT']])
-        #logC=np.vstack([logC,SIM_OUT_L1[j]['logC']])
+        lost_FIFOIN = np.vstack([lost_FIFOIN,
+                                    SIM_OUT_L1[j]['lost_FIFOIN']])
+        lost_ETHOUT = np.vstack([lost_ETHOUT,
+                                    SIM_OUT_L1[j]['lost_ETHOUT']])
+        log_FIFOIN = np.vstack([log_FIFOIN,
+                                    SIM_OUT_L1[j]['log_FIFOIN']])
+        log_ETHOUT = np.vstack([log_ETHOUT,
+                                    SIM_OUT_L1[j]['log_ETHOUT']])
 
         for i in range(len(SIM_OUT_L1[j]['data_out'])):
-            #if SIM_OUT[j]['data_out'][i]['data'][0] > 0:
             data.append(SIM_OUT_L1[j]['data_out'][i]['data'])
             in_time.append(SIM_OUT_L1[j]['data_out'][i]['in_time'])
             out_time.append(SIM_OUT_L1[j]['data_out'][i]['out_time'])
@@ -338,21 +316,6 @@ if __name__ == '__main__':
     CG = CG.data
     # Read data from json file
 
-
-    # # Keras Model read hack:
-    # encoder_file = CG['ENVIRONMENT']['AUTOENCODER_file_name']
-    # with tb.open_file(path + encoder_file) as h5file:
-    #     B=[]
-    #     for array in h5file.walk_nodes("/"):
-    #         B.append(array)
-    #     COMP={}
-    #     COMP={'ENC_bias_A'    :np.array([B[-2][:]],dtype=float).T,
-    #           'ENC_weights_A' :np.array(B[-1][:],dtype=float),
-    #           'DEC_bias_A'    :np.array([B[-4][:]],dtype=float).T,
-    #           'DEC_weights_A' :np.array(B[-3][:],dtype=float)}
-
-
-
     n_sipms_int = CG['TOPOLOGY']['sipm_int_row']*CG['TOPOLOGY']['n_rows']
     n_sipms_ext = CG['TOPOLOGY']['sipm_ext_row']*CG['TOPOLOGY']['n_rows']
     n_sipms     = n_sipms_int + n_sipms_ext
@@ -371,12 +334,6 @@ if __name__ == '__main__':
     DATA = DATA[0:n_events,:]
     print (" %d EVENTS IN %d H5 FILES" % (n_events,len(n_files)))
 
-    # SHOW = PG.DET_SHOW(CG.data)
-    # os.chdir("/home/viherbos/DAQ_DATA/NEUTRINOS/RING/")
-    # filename = "p_FRSET_0.h5"
-    # positions = np.array(pd.read_hdf(filename,key='sensors'))
-    # data = np.array(pd.read_hdf(filename,key='MC'), dtype = 'int32')
-    # SHOW(positions,data,0,True,False)
 
 
     Param = DAQ.parameters(CG,sensors,n_events)
@@ -390,94 +347,23 @@ if __name__ == '__main__':
     sim_info = {'DATA': DATA, 'timing': timing, 'Param': Param }
 
     # Call Simulation Function
-    pool_out,topology = DAQ_sim_WAVELET(sim_info)
-
-    # Translate Simulation Output into an array for Data recovery
-    SIM_OUT = {'L1_out':[], 'ASICS_out':[]}
-    for i in range(len(pool_out)):
-        SIM_OUT['L1_out'].append(pool_out[i]['L1_out'])
-        for j in range(len(pool_out[i]['ASICS_out'])):
-            SIM_OUT['ASICS_out'].append(pool_out[i]['ASICS_out'][j])
-
-    # Data Output recovery
-    n_L1    = np.array(CG['L1']['L1_mapping_O']).shape[0]
-    n_asics = np.sum(np.array(CG['L1']['L1_mapping_O']))
-    #topology['n_L1'],topology['n_asics'])
-
-
-    out = DAQ_OUTPUT_processing_WAVELET(SIM_OUT,n_L1,n_asics,CG)
+    pool_out,topology = DAQ_sim_CUBE(sim_info)
 
 
 
-    ####################  WAVELET PACKET PROCESSING ##########################
 
-    n_rows = CG['TOPOLOGY']['n_rows']
-    kwargs = {'n_rows':n_rows,
-              'TE2':CG['L1']['TE'],
-              'n_sensors':0,
-              'base':CG['L1']['wav_base']}
-
-    # Quantize and clip
-    T_LL = CG['L1']['TW'][0]
-    T_LH = CG['L1']['TW'][1]
-    T_HL = CG['L1']['TW'][2]
-    Q_LL = CG['L1']['QW'][0]
-    Q_LH = CG['L1']['QW'][1]
-    Q_HL = CG['L1']['QW'][2]
-
-    WAV = ET.encoder_tools_PW(**kwargs)
-    WAV.L1_size_compressed =[8,20]
-
-    L1_box, SiPM_I, SiPM_O, topology = MAP.SiPM_Mapping(CG,CG['L1']['map_style'])
-    data_recons    = np.zeros((n_events,n_sipms),dtype='float')
+    out = DAQ_OUTPUT_processing_CUBE(SIM_OUT,n_L1,n_asics,CG)
 
 
-    # data_encoded = np.array(pd.read_hdf("/home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/5mm_pitch/VER5/FASTDAQOUT_OF5mm_TENC150.000.h5",
-    #                         key='MC_encoded'), dtype = 'float')
-
-    for i in range(n_events):
-        index_1 = 0
-        for L1 in L1_box:
-            # Build L1_SiPM matrix
-            L1_SiPM = np.array([],dtype='int').reshape(n_rows,0)
-            for asic in L1:
-                L1_SiPM = np.hstack((L1_SiPM,np.array(asic).reshape((n_rows,-1),order='F')))
-
-            data_LL_aux = out['data'][0][i,:]
-            data_LH_aux = out['data'][1][i,:]
-            data_HL_aux = out['data'][2][i,:]
-            #data_enc_aux = data_encoded[i,:]
-
-            # Quantize and clip + Threshold
-            data_LL_aux = q_d(data_LL_aux,Q_LL,[0,1200])
-            data_LH_aux = q_d(data_LH_aux,Q_LH,[-600,600])
-            data_HL_aux = q_d(data_HL_aux,Q_HL,[-600,600])
-            data_LL_aux[np.abs(data_LL_aux)<T_LL] = 0
-            data_LH_aux[np.abs(data_LH_aux)<T_LH] = 0
-            data_HL_aux[np.abs(data_HL_aux)<T_HL] = 0
-
-
-            index_1,recons_event = WAV.decoder( L1_SiPM,
-                                                data_LL_aux,
-                                                data_LH_aux,
-                                                data_HL_aux,
-                                                index_1)
-
-            for sipm_id in L1_SiPM:
-                # data_recons_event is now a matrix with same shape as L1_SiPM (see below)
-                data_recons[i,sipm_id] = recons_event[L1_SiPM==sipm_id]
-
-    #data_recons = data_recons * (data_recons > CG['L1']['TE'])
-
-
-    #####################################################################
 
     # Write output to file
     cfg_filename = file_name[file_name.rfind("/")+1:]
+
     DAQ_dump = HF.DAQ_IO(CG['ENVIRONMENT']['path_to_files'],
                     CG['ENVIRONMENT']['file_name'],
                     CG['ENVIRONMENT']['file_name']+"000.h5",
                     CG['ENVIRONMENT']['out_file_name']+"_"+cfg_filename+".h5")
+
     logs = {  'logA':out['L1']['logA'],
               'logB':out['L1']['logB'],
               'logC':out['L1']['logC'],
@@ -495,6 +381,7 @@ if __name__ == '__main__':
               'tstamp_event':out['tstamp_event'],
               'timestamp':out['timestamp']
             }
+
     DAQ_dump.write_out(data_recons,topology,logs)
 
 

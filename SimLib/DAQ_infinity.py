@@ -58,6 +58,11 @@ class ch_frame(object):
         self.in_time    = aux_list['in_time']
         self.out_time   = aux_list['out_time']
 
+    def get_dict(self):
+        return {'data'      :   self.data,      'event'     :   self.event,
+                'sensor_id' :   self.sensor_id, 'asic_id'   :   self.asic_id,
+                'in_time'   :   self.in_time,   'out_time'  :   self.out_time}
+
     def __repr__(self):
         return "data: {}, event: {}, sensor_id: {}, asic_id: {} in_time:{} out_time:{}".\
             format( self.data, self.event, self.sensor_id, self.asic_id,
@@ -65,7 +70,7 @@ class ch_frame(object):
 
 
 class L1_outframe(object):
-    """ For "Active" L1 versions only
+    """ For "Active" L1 versions only (not for CUBE)
     """
 
     def __init__(self,data,event,asic_id,in_time,out_time):
@@ -178,7 +183,8 @@ class producer(object):
                                         out_time  = 0)
                     #np.array([self.data[self.counter],self.env.now,0])
                     # PACKET FRAME: [SENSOR_DATA, IN_TIME, OUT_TIME]
-                    self.lost = self.out.put(self.DATA.get_np_array(),self.lost)
+                    # self.lost = self.out.put(self.DATA.get_np_array(),self.lost)
+                    self.lost = self.out.put(self.DATA.get_dict(),self.lost)
                 self.counter += 1
                 # Drop data. FIFO is FULL so data is lost
             except IndexError:
@@ -470,8 +476,9 @@ class L1_outlink(object):
         while True:
             yield self.env.timeout(self.latency)
             packet = yield self.res.get()
-            self.lost = self.out.put(packet,self.lost)
             yield self.env.timeout(1.0E9/self.FIFO_delay)
+            self.out.put(packet)
+            # DRAIN loses no data
             # L1 FIFO delay
 
     def __call__(self):
@@ -540,14 +547,14 @@ class L1(object):
 
 class DATA_drain(object):
     """ Data drain """
-    def __init__(self,env,out_stream):
-        self.env = env
-        self.action = env.process(self.run())
+    def __init__(self, out_stream, env):
         self.out_stream = out_stream
+        self.env = env
 
-    def run(self):
-        while True:
-            self.out_stream.append(msg)
+    def put(self, packet):
+        packet['out_time'] = self.env.now
+        # Insert output time mark
+        self.out_stream.append(packet)
 
     def __call__(self):
         output = self.out_stream
