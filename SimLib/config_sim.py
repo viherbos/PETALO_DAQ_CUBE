@@ -26,10 +26,9 @@ class SIM_DATA(object):
                                         'MC_file_name':"full_ring_iradius165mm_z140mm_depth3cm_pitch7mm",
                                         'out_file_name':"DAQ_OF_7mm",
                                         'MC_out_file_name':"FASTDAQ_OF_7mm",
-                                        'AUTOENCODER_file_name':"Rafa_2UP",
                                         'time_bin': 5,
                                         'n_files' : range(1),
-                                        'n_events': 10000},
+                                        'n_events': 1000},
 
                         'SIPM'        :{'size'        :[1,6,6]},
 
@@ -49,24 +48,17 @@ class SIM_DATA(object):
                                         'TE':2,
                                         'TGAIN':1},
 
-                        'L1'          :{'L1_outrate'    :2000E6,
-                                        'frame_process' :5000,
+                        'L1'          :{'n_asics'       :10,
+                                        'L1_outrate'    :2000E6,
                                         'FIFO_L1a_depth':32,
                                         'FIFO_L1a_freq' :400E6,
                                         'FIFO_L1b_depth':64,
                                         'FIFO_L1b_freq' :400E6,
-                                        'buffer_size'   :1024,
                                         'n_asics'       :10,
                                         'TE'            :3,
                                         'map_style'     :'striped_3',
-                                        'L1_mapping_I'  :[],#[8,8,8,8,8],
-                                        'L1_mapping_O'  :[10,10,10,10,10,10],
-                                        'Tenc'          :0.05,
-                                        'wav_base'      :'haar',
-                                        'TW'            :[0,4,8],
-                                        'QW'            :[12,4,4],
-                                        "enc_out_len"   :160,
-	                                    "wav_blocksize" :160
+                                        'L1_mapping_I'  :[],
+                                        'L1_mapping_O'  :[9,9,9,10,9,9],
                                         }
                        }
 # 'L1_mapping_O'  :[11,12,12,12,12,12]

@@ -21,7 +21,7 @@ import pandas as pd
 import math
 import argparse
 import tables as tb
-from SimLib import Encoder_tools as ET
+
 
 
 
@@ -47,7 +47,7 @@ def L1_exec(SiPM_Matrix_Slice, sim_info):
     # Create instance of L1
     L1_instance    = DAQ.L1( env         = env,
                              sim_info    = sim_info,
-                             SiPM_Matrix = SiPM_Matrix_Slice)
+                             SiPM_Matrix_Slice = SiPM_Matrix_Slice)
 
     DRAIN_instance = DAQ.DATA_drain( out_stream = data_out,
                                             env = env)
@@ -63,7 +63,6 @@ def L1_exec(SiPM_Matrix_Slice, sim_info):
     OUTPUT_ASICS   = [L1_instance.ASICS[i]() for i in range(n_asics)]
     # Get data for statistics
 
-    print "L1 finished"
 
     return {'DATA_out' : OUTPUT_Drain,
             'L1_out'   : OUTPUT_L1,
@@ -82,6 +81,7 @@ def DAQ_sim_CUBE(sim_info):
         # JSON file doesn't include mapping option
         L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(param.P, 'striped')
 
+    L1_exec(L1_Slice[0],sim_info)
     # Multiprocess Pool Management
     kargs = {'sim_info':sim_info}
     DAQ_map = partial(L1_exec, **kargs)
@@ -104,189 +104,6 @@ def DAQ_sim_CUBE(sim_info):
     return pool_output,topology
 
 
-
-def DAQ_OUTPUT_processing_CUBE( POOL_OUT, CG):
-    """ POOL_OUT = Simulation Pool Output
-    """
-
-    # Translate Simulation Output into an array for Data recovery
-    SIM_OUT = {'L1_out':[], 'ASICS_out':[]}
-    for i in range(len(POOL_OUT)):
-        SIM_OUT['L1_out'].append(POOL_OUT[i]['L1_out'])
-        for j in range(len(POOL_OUT[i]['ASICS_out'])):
-            SIM_OUT['ASICS_out'].append(POOL_OUT[i]['ASICS_out'][j])
-    n_L1    = np.array(CG['L1']['L1_mapping_O']).shape[0]
-    n_asics = np.sum(np.array(CG['L1']['L1_mapping_O']))
-
-
-    data, in_time, out_time, L1_id = [],[],[],[]
-    lost_producers  = np.array([]).reshape(0,1)
-    lost_channels   = np.array([]).reshape(0,1)
-    lost_outlink    = np.array([]).reshape(0,1)
-    log_channels    = np.array([]).reshape(0,2)
-    log_outlink     = np.array([]).reshape(0,2)
-
-    SIM_OUT_L1      = np.array(SIM_OUT['L1_out'])
-    SIM_OUT_ASICs   = np.array(SIM_OUT['ASICS_out'])
-    lost_FIFOIN     = np.array([]).reshape(0,1)
-    lost_ETHOUT     = np.array([]).reshape(0,1)
-    log_FIFOIN      = np.array([]).reshape(0,2)
-    log_ETHOUT      = np.array([]).reshape(0,2)
-
-
-    # Gather information from ASICS layer
-    for j in range(n_asics):
-        lost_producers = np.vstack([lost_producers,
-                                    SIM_OUT_ASICs[j]['lost_producers']])
-        lost_channels = np.vstack([lost_channels,
-                                    SIM_OUT_ASICs[j]['lost_channels']])
-        lost_outlink  = np.vstack([lost_outlink,
-                                    SIM_OUT_ASICs[j]['lost_outlink']])
-        log_channels  = np.vstack([log_channels,
-                                    SIM_OUT_ASICs[j]['log_channels']])
-        log_outlink   = np.vstack([log_outlink,
-                                    SIM_OUT_ASICs[j]['log_outlink']])
-
-    # Gather information from L1 layer
-    for j in range(n_L1):
-        lost_FIFOIN = np.vstack([lost_FIFOIN,
-                                    SIM_OUT_L1[j]['lost_FIFOIN']])
-        lost_ETHOUT = np.vstack([lost_ETHOUT,
-                                    SIM_OUT_L1[j]['lost_ETHOUT']])
-        log_FIFOIN = np.vstack([log_FIFOIN,
-                                    SIM_OUT_L1[j]['log_FIFOIN']])
-        log_ETHOUT = np.vstack([log_ETHOUT,
-                                    SIM_OUT_L1[j]['log_ETHOUT']])
-
-        for i in range(len(SIM_OUT_L1[j]['data_out'])):
-            data.append(SIM_OUT_L1[j]['data_out'][i]['data'])
-            in_time.append(SIM_OUT_L1[j]['data_out'][i]['in_time'])
-            out_time.append(SIM_OUT_L1[j]['data_out'][i]['out_time'])
-            L1_id.append(j)
-
-    #
-    # A = np.array(data)
-    # sort = np.array([i[1] for i in A])
-    # sort_res = np.argsort(sort)
-    # A = A[sort_res]
-    # L1_id = np.array(L1_id)
-    # L1_id = L1_id[sort_res]
-    #
-    # in_time = np.array(in_time)
-    # in_time = in_time[sort_res]
-    # out_time = np.array(out_time)
-    # out_time = out_time[sort_res]
-    #
-    # n_TDC = np.array([])
-    # i_TDC = np.array([])
-    # TDC = np.array([A[i][1] for i in range(len(A))])
-    #
-    #
-    # prev=0
-    # for i in TDC:
-    #     if (i != prev):
-    #         cond = np.array((TDC == i))
-    #         n_TDC = np.concatenate((n_TDC,[np.sum(cond)]),axis=0)
-    #         i_TDC = np.concatenate((i_TDC,[i]),axis=0)
-    #         # For each TDC==i take all L1_id
-    #
-    #         selec = np.array(range(len(cond)))
-    #
-    #         for j in selec[cond]:
-    #             #print ("%d - %d" % (i,L1_id[j]))
-    #             L1_frag_aux[0,L1_id[j]] += 1
-    #
-    #         #print L1_frag_aux
-    #
-    #         if (np.sum(L1_frag_aux[0,:]) != np.sum(cond)):
-    #             print ("FRAGMENTATION ASSERTION")
-    #         L1_frag = np.vstack([L1_frag,L1_frag_aux])
-    #
-    #         L1_frag_aux = np.zeros((1,n_L1),dtype=int)
-    #         prev = i
-    # # Scan TDC list : n_TDC number of dataframes with same i_TDC
-    # # i_TDC list of different TDC
-    #
-    #
-    #
-    # # Timestamp Generator
-    # n_bits = np.zeros(len(A))
-    # # Buffer compression statistic
-    # for i in range(len(A)):
-    #     n_bits[i] = DAQ.L1_outframe_nbits_WAV(A[i],CG)
-    #
-    # time_vector = np.add.accumulate(timing)
-    # #Event number location
-    # event_order = []
-    # cnt = 0
-    # for i in i_TDC:
-    #     locked = np.argwhere(time_vector==i)
-    #     for j in locked:
-    #         # Sometimes we have the same TDC for consecutive events
-    #         event_order.append(time_vector[int(j)])
-    #         cnt += 1
-    # event_order = np.array(event_order)
-    #
-    #
-    # # Data table building
-    # event = 0
-    # A_index = 0
-    #
-    # WP_len = CG['L1']['wav_blocksize']
-    # bs     = CG['L1']['wav_blocksize']
-    # n_WP = WP_len * n_L1
-    #
-    # data_LL = np.zeros((n_events,n_WP),dtype='float')
-    # data_LH = np.zeros((n_events,n_WP),dtype='float')
-    # data_HL = np.zeros((n_events,n_WP),dtype='float')
-    #
-    # for i in i_TDC:
-    #     for j in range(int(n_TDC[event])):
-    #         ind_t = event_order[event]
-    #         #data[np.argwhere(time_vector==ind_t),int(A[A_index][2*l+2])] = A[A_index][2*l+3]
-    #         L1_id2 = L1_id[A_index]
-    #         data_LL[np.argwhere(time_vector==ind_t),int(L1_id2*WP_len):int((L1_id2+1)*WP_len)] = A[A_index][2:bs+2]
-    #         data_LH[np.argwhere(time_vector==ind_t),int(L1_id2*WP_len):int((L1_id2+1)*WP_len)] = A[A_index][bs+2:2*bs+2]
-    #         data_HL[np.argwhere(time_vector==ind_t),int(L1_id2*WP_len):int((L1_id2+1)*WP_len)] = A[A_index][2*bs+2:3*bs+2]
-    #
-    #         A_index += 1
-    #
-    #     event += 1
-
-
-
-
-
-    output = {'data':[data_LL,data_LH,data_HL],
-
-              'L1': {'in_time': in_time, 'out_time': out_time,
-                     'lostL1b': lostL1b, 'logA': logA, 'logB': logB,
-                     'logC': logC, 'frag':np.hstack([np.transpose([i_TDC]),L1_frag])},
-
-              'ASICS':{ 'lost_producers':lost_producers,
-                        'lost_channels':lost_channels,
-                        'lost_outlink':lost_outlink,
-                        'log_channels':log_channels,
-                        'log_outlink':log_outlink},
-
-              'compress': n_bits,
-
-              'tstamp_event':event_order,
-
-              'timestamp':time_vector
-            }
-
-
-    return output
-
-
-
-# def q_d(data,bits,FS):
-#     bins = np.arange(FS[0],FS[1],float(FS[1]-FS[0])/(2**bits),dtype=float)
-#     data[data>bins[-1]] = FS[1]-float(FS[1]-FS[0])/(2**bits)
-#     data[data<bins[0]] = FS[0]
-#     return bins[np.digitize(data,bins,right=True)]
-#
 
 
 if __name__ == '__main__':
@@ -350,39 +167,40 @@ if __name__ == '__main__':
     pool_out,topology = DAQ_sim_CUBE(sim_info)
 
 
-
-
-    out = DAQ_OUTPUT_processing_CUBE(SIM_OUT,n_L1,n_asics,CG)
+    POUT = HF.DAQ_OUT_CUBE(file_name, CG, pool_out, topology)
+    POUT.write_raw_out()
+    output = POUT.process()
+    POUT.write_out(output)
 
 
 
     # Write output to file
-    cfg_filename = file_name[file_name.rfind("/")+1:]
-
-    DAQ_dump = HF.DAQ_IO(CG['ENVIRONMENT']['path_to_files'],
-                    CG['ENVIRONMENT']['file_name'],
-                    CG['ENVIRONMENT']['file_name']+"000.h5",
-                    CG['ENVIRONMENT']['out_file_name']+"_"+cfg_filename+".h5")
-
-    logs = {  'logA':out['L1']['logA'],
-              'logB':out['L1']['logB'],
-              'logC':out['L1']['logC'],
-              'frame_frag':out['L1']['frag'],
-              'log_channels':out['ASICS']['log_channels'],
-              'log_outlink': out['ASICS']['log_outlink'],
-              'in_time': out['L1']['in_time'],
-              'out_time': out['L1']['out_time'],
-              'lost':{  'producers':out['ASICS']['lost_producers'].sum(),
-                        'channels' :out['ASICS']['lost_channels'].sum(),
-                        'outlink'  :out['ASICS']['lost_outlink'].sum(),
-                        'L1b'      :np.array(out['L1']['lostL1b']).sum()
-                      },
-              'compress':out['compress'],
-              'tstamp_event':out['tstamp_event'],
-              'timestamp':out['timestamp']
-            }
-
-    DAQ_dump.write_out(data_recons,topology,logs)
+    # cfg_filename = file_name[file_name.rfind("/")+1:]
+    #
+    # DAQ_dump = HF.DAQ_IO(CG['ENVIRONMENT']['path_to_files'],
+    #                 CG['ENVIRONMENT']['file_name'],
+    #                 CG['ENVIRONMENT']['file_name']+"000.h5",
+    #                 CG['ENVIRONMENT']['out_file_name']+"_"+cfg_filename+".h5")
+    #
+    # logs = {  'logA':out['L1']['logA'],
+    #           'logB':out['L1']['logB'],
+    #           'logC':out['L1']['logC'],
+    #           'frame_frag':out['L1']['frag'],
+    #           'log_channels':out['ASICS']['log_channels'],
+    #           'log_outlink': out['ASICS']['log_outlink'],
+    #           'in_time': out['L1']['in_time'],
+    #           'out_time': out['L1']['out_time'],
+    #           'lost':{  'producers':out['ASICS']['lost_producers'].sum(),
+    #                     'channels' :out['ASICS']['lost_channels'].sum(),
+    #                     'outlink'  :out['ASICS']['lost_outlink'].sum(),
+    #                     'L1b'      :np.array(out['L1']['lostL1b']).sum()
+    #                   },
+    #           'compress':out['compress'],
+    #           'tstamp_event':out['tstamp_event'],
+    #           'timestamp':out['timestamp']
+    #         }
+    #
+    # DAQ_dump.write_out(data_recons,topology,logs)
 
 
 
@@ -391,5 +209,5 @@ if __name__ == '__main__':
     #///                     DATA ANALYSIS AND GRAPHS               ///
     #//////////////////////////////////////////////////////////////////
 
-    graphic_out = HF.infinity_graphs_WP([file_name],path)
-    graphic_out()
+    #graphic_out = HF.infinity_graphs_WP([file_name],path)
+    #graphic_out()

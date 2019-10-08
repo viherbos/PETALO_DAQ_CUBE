@@ -10,7 +10,7 @@ import os
 import pandas as pd
 import math
 import sipm_mapping as MAP
-import Encoder_tools as ET
+
 
 
 """ LIBRARY FOR CUBE DAQ """
@@ -62,6 +62,9 @@ class ch_frame(object):
         return {'data'      :   self.data,      'event'     :   self.event,
                 'sensor_id' :   self.sensor_id, 'asic_id'   :   self.asic_id,
                 'in_time'   :   self.in_time,   'out_time'  :   self.out_time}
+
+    def ch_frame_nbits(self, CH=13, TDC=26, QDC=10):
+        return (CH + TDC + QDC)
 
     def __repr__(self):
         return "data: {}, event: {}, sensor_id: {}, asic_id: {} in_time:{} out_time:{}".\
@@ -242,7 +245,7 @@ class FE_channel(object):
     def run(self):
         while True:
             self.packet = yield self.res.get()
-            self.msg = self.packet[0]
+            self.msg = self.packet['data']
             self.wilk_delay = int((self.latency/1024)*self.msg*self.gain)
             if self.wilk_delay > self.latency:
                 self.wilk_delay = self.latency
@@ -387,10 +390,10 @@ class L1_channel(object):
 
     def __init__(self,env,param,asic_id):
         self.env = env
-        self.FIFO_size = param.P['TOFPET']['FIFO_L1a_depth']
+        self.FIFO_size = param.P['L1']['FIFO_L1a_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_size)
         self.action = env.process(self.run())
-        self.latency = param.P['L1']['FIFO_L1a_latency']
+        self.latency = int(1E9/param.P['L1']['FIFO_L1a_freq'])
         self.out = None
         self.index = 0
         self.lost = 0
@@ -404,8 +407,6 @@ class L1_channel(object):
     def put(self,data,lost):
         try:
             if (len(self.res.items)<self.FIFO_size):
-                yield self.env.timeout(self.latency)
-                # Write Latency
                 self.res.put(data)
                 self.print_stats()
                 return lost
@@ -419,7 +420,6 @@ class L1_channel(object):
         while True:
             yield self.env.timeout(self.latency)
             self.packet = yield self.res.get()
-            self.msg = self.packet[0]
             # Read Latency
             self.lost = self.out.put(self.packet,self.lost)
 
@@ -450,7 +450,7 @@ class L1_outlink(object):
         self.res = simpy.Store(self.env,capacity=self.FIFO_out_size)
         self.action = env.process(self.run())
         self.latency = int(1E9/param.P['L1']['L1_outrate'])
-        self.FIFO_delay = param.P['L1']['FIFO_L1b_latency']
+        self.FIFO_delay = int(1.0E9/param.P['L1']['FIFO_L1b_freq'])
         self.log = np.array([]).reshape(0,2)
         self.out = None
         self.lost = 0
@@ -462,7 +462,6 @@ class L1_outlink(object):
     def put(self,data,lost):
         try:
             if (len(self.res.items)<self.FIFO_out_size):
-                yield self.env.timeout(self.FIFO_delay)
                 self.res.put(data)
                 self.print_stats()
                 return lost
@@ -474,9 +473,9 @@ class L1_outlink(object):
 
     def run(self):
         while True:
-            yield self.env.timeout(self.latency)
+            yield self.env.timeout(self.FIFO_delay)
             packet = yield self.res.get()
-            yield self.env.timeout(1.0E9/self.FIFO_delay)
+            yield self.env.timeout(ch_frame(**packet).ch_frame_nbits() * self.latency)
             self.out.put(packet)
             # DRAIN loses no data
             # L1 FIFO delay
@@ -501,48 +500,48 @@ class L1(object):
                                                    sensors,
                                                    n_events)
     """
-        def __init__(self, env, sim_info, SiPM_Matrix_Slice):
-            self.env            = env
-            self.param          = sim_info['Param']
-            self.latency        = int(1E9/self.param.P['L1']['L1_outrate'])
+    def __init__(self, env, sim_info, SiPM_Matrix_Slice):
+        self.env            = env
+        self.param          = sim_info['Param']
+        self.latency        = int(1E9/self.param.P['L1']['L1_outrate'])
 
-            self.ASICS   = [ FE_asic(   env     = self.env,
-                                        param   = self.param,
-                                        data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
-                                        timing  = sim_info['timing'],
-                                        sensors = self.param.sensors[SiPM_Matrix_Slice[i]],
-                                        asic_id = i ),
-                             for i in range(self.param.P['L1']['n_asics']) ]
+        self.ASICS   = [ FE_asic(   env     = self.env,
+                                    param   = self.param,
+                                    data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
+                                    timing  = sim_info['timing'],
+                                    sensors = self.param.sensors[SiPM_Matrix_Slice[i]],
+                                    asic_id = i )
+                         for i in range(len(SiPM_Matrix_Slice)) ]
 
-            self.FIFO_IN = [ L1_channel(env     = self.env,
-                                        param   = self.param,
-                                        asic_id = i ),
-                             for i in range(self.param.P['L1']['n_asics']) ]
+        self.FIFO_IN = [ L1_channel(env     = self.env,
+                                    param   = self.param,
+                                    asic_id = i )
+                         for i in range(len(SiPM_Matrix_Slice)) ]
 
-            self.ETH_OUT = L1_outlink(  env     = self.env,
-                                        param   = self.param)
+        self.ETH_OUT = L1_outlink(  env     = self.env,
+                                    param   = self.param)
 
-            for i in range(self.param.P['L1']['n_asics']):
-                ASICS[i].Link.out = self.FIFO_IN[i]
+        for i in range(len(SiPM_Matrix_Slice)):
+            self.ASICS[i].Link.out = self.FIFO_IN[i]
 
-            for i in range(self.param.P['L1']['n_asics']):
-                self.FIFO_IN[i].out = self.ETH_OUT
+        for i in range(len(SiPM_Matrix_Slice)):
+            self.FIFO_IN[i].out = self.ETH_OUT
 
 
-        def __call__(self):
-            lost_FIFOIN = np.array([]).reshape(0,1)
-            log_FIFOIN  = np.array([]).reshape(0,1)
-            for i in self.FIFO_IN:
-                lost_FIFOIN = np.vstack(lost_FIFOIN, i()['lost']])
-                log_FIFOIN  = np.vstack(lost_FIFOIN, i()['log']])
+    def __call__(self):
+        lost_FIFOIN = np.array([]).reshape(0,1)
+        log_FIFOIN  = np.array([]).reshape(0,2)
+        for i in self.FIFO_IN:
+            lost_FIFOIN = np.vstack([lost_FIFOIN, i()['lost']])
+            log_FIFOIN  = np.vstack([log_FIFOIN, i()['log']])
 
-            output = { 'lost_FIFOIN' : lost_FIFOIN,
-                       'lost_ETHOUT' : self.ETH_OUT['lost'],
-                       'log_FIFOIN'  : log_FIFOIN,
-                       'log_ETHOUT'  : self.ETH_OUT['log']
-                       }
+        output = { 'lost_FIFOIN' : lost_FIFOIN,
+                   'lost_ETHOUT' : self.ETH_OUT()['lost'],
+                   'log_FIFOIN'  : log_FIFOIN,
+                   'log_ETHOUT'  : self.ETH_OUT()['log']
+                   }
 
-            return output
+        return output
 
 
 class DATA_drain(object):
@@ -553,8 +552,8 @@ class DATA_drain(object):
 
     def put(self, packet):
         packet['out_time'] = self.env.now
-        # Insert output time mark
+        # Insert output time stamp
         self.out_stream.append(packet)
 
     def __call__(self):
-        output = self.out_stream
+        return self.out_stream
