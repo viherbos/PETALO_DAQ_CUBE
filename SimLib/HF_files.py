@@ -79,12 +79,12 @@ class DAQ_OUT_CUBE(object):
         """
 
         # Translate Simulation Output into an array for Data recovery
-        SIM_OUT = {'DATA_out':[],'L1_out':[], 'ASICS_out':[]}
-        for i in range(len(self.pool_out)):
-            SIM_OUT['L1_out'].extend(self.pool_out[i]['L1_out'])
-            SIM_OUT['DATA_out'].extend(self.pool_out[i]['DATA_out'])
-            for j in range(len(self.pool_out[i]['ASICS_out'])):
-                SIM_OUT['ASICS_out'].extend(self.pool_out[i]['ASICS_out'][j])
+        # SIM_OUT = {'DATA_out':[],'L1_out':[], 'ASICS_out':[]}
+        # for i in range(len(self.pool_out)):
+        #     SIM_OUT['L1_out'].extend(self.pool_out[i]['L1_out'])
+        #     SIM_OUT['DATA_out'].extend(self.pool_out[i]['DATA_out'])
+        #     for j in range(len(self.pool_out[i]['ASICS_out'])):
+        #         SIM_OUT['ASICS_out'].extend(self.pool_out[i]['ASICS_out'][j])
 
 
         lost_producers  = np.array([]).reshape(0,1)
@@ -93,52 +93,66 @@ class DAQ_OUT_CUBE(object):
         log_channels    = np.array([]).reshape(0,2)
         log_outlink     = np.array([]).reshape(0,2)
 
-        SIM_OUT_L1      = np.array(SIM_OUT['L1_out'])
-        SIM_OUT_ASICs   = np.array(SIM_OUT['ASICS_out'])
+        # SIM_OUT_L1      = SIM_OUT['L1_out']
+        # SIM_OUT_ASICs   = SIM_OUT['ASICS_out']
+        # print SIM_OUT_L1
+
         lost_FIFOIN     = np.array([]).reshape(0,1)
         lost_ETHOUT     = np.array([]).reshape(0,1)
         log_FIFOIN      = np.array([]).reshape(0,2)
         log_ETHOUT      = np.array([]).reshape(0,2)
 
+        SIM_OUT         = []
 
         # Gather Log information from ASICS layer
-        for j in range(self.n_asics):
-            lost_producers = np.vstack([lost_producers,
-                                        SIM_OUT_ASICs[j]['lost_producers']])
-            lost_channels = np.vstack([lost_channels,
-                                        SIM_OUT_ASICs[j]['lost_channels']])
-            lost_outlink  = np.vstack([lost_outlink,
-                                        SIM_OUT_ASICs[j]['lost_outlink']])
-            log_channels  = np.vstack([log_channels,
-                                        SIM_OUT_ASICs[j]['log_channels']])
-            log_outlink   = np.vstack([log_outlink,
-                                        SIM_OUT_ASICs[j]['log_outlink']])
+        for L1_i in self.pool_out:
+            for j in L1_i['ASICS_out']:
+                lost_producers = np.vstack([lost_producers,
+                                            np.array(j['lost_producers'])])
+                lost_channels = np.vstack([lost_channels,
+                                            np.array(j['lost_channels'])])
+                lost_outlink  = np.vstack([lost_outlink,
+                                            np.array(j['lost_outlink'])])
+                log_channels  = np.vstack([log_channels,
+                                            np.array(j['log_channels'])])
+                log_outlink   = np.vstack([log_outlink,
+                                            np.array(j['log_outlink'])])
 
         # Gather Log information from L1 layer
-        for j in range(self.n_L1):
+        for L1_i in self.pool_out:
             lost_FIFOIN = np.vstack([lost_FIFOIN,
-                                        SIM_OUT_L1[j]['lost_FIFOIN']])
+                                        np.array(L1_i['L1_out']['lost_FIFOIN'])])
             lost_ETHOUT = np.vstack([lost_ETHOUT,
-                                        SIM_OUT_L1[j]['lost_ETHOUT']])
+                                        np.array(L1_i['L1_out']['lost_ETHOUT'])])
             log_FIFOIN = np.vstack([log_FIFOIN,
-                                        SIM_OUT_L1[j]['log_FIFOIN']])
+                                        np.array(L1_i['L1_out']['log_FIFOIN'])])
             log_ETHOUT = np.vstack([log_ETHOUT,
-                                        SIM_OUT_L1[j]['log_ETHOUT']])
+                                        np.array(L1_i['L1_out']['log_ETHOUT'])])
+
+        # Create an array with all DATA OUT
+        for L1_i in self.pool_out:
+            for j in range(len(L1_i['DATA_out'])):
+                SIM_OUT.append(L1_i['DATA_out'][j])
 
 
         # data_sit: list of ch_frame dictionaries sorted by in time (sit)
-        data_sit = sorted(SIM_OUT['DATA_out'], key=lambda k:k['in_time'])
+        data_sit = sorted(SIM_OUT, key=lambda k:k['in_time'])
+
 
         data_panel = np.zeros([self.n_events,self.n_sipm],dtype=int)
 
-        # Llenar la tabla
+        # Fill the table
         index = 0
         count = 0
         for i in range(self.n_events):
             timestamp = data_sit[index]['in_time']
-            while timestamp ==  data_sit[count]['in_time']:
+            while timestamp == data_sit[count]['in_time']:
+                sensor_id = data_sit[count]['sensor_id']-1000
                 data_panel[i][sensor_id] = data_sit[count]['data']
-                count = count + 1
+                if count < len(data_sit)-1:
+                    count = count + 1
+                else:
+                    break
             index = count
 
 
@@ -163,7 +177,7 @@ class DAQ_OUT_CUBE(object):
 
     def write_out(self, p_out):
 
-        topo_data = np.array(list(self.topology.values())).reshape(1,len(list(topology.values())))
+        topo_data = np.array(list(self.topology.values())).reshape(1,len(list(self.topology.values())))
 
         os.chdir(self.path)
         with pd.HDFStore(self.daq_outfile,
@@ -174,7 +188,7 @@ class DAQ_OUT_CUBE(object):
             qdc_data      = pd.DataFrame(data = np.array(p_out['QDC_table']),
                                          columns=self.sensors_xyz[:,0])
             topo          = pd.DataFrame(data = topo_data,
-                                         columns = list(topology.keys()))
+                                         columns = list(self.topology.keys()))
 
             lost_producers = pd.DataFrame(data = np.array(p_out['ASICS_log']['lost_producers']))
             lost_channels  = pd.DataFrame(data = np.array(p_out['ASICS_log']['lost_channels']))
@@ -187,7 +201,7 @@ class DAQ_OUT_CUBE(object):
             log_FIFOIN    = pd.DataFrame(data = np.array(p_out['L1_log']['log_FIFOIN']))
             log_ETHOUT    = pd.DataFrame(data = np.array(p_out['L1_log']['log_ETHOUT']))
 
-            store.put('qdc_data',raw_data)
+            store.put('qdc_data',qdc_data)
             store.put('sensors',sensors_array)
             store.put('topology',topo)
 

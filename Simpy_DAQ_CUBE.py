@@ -96,7 +96,9 @@ def DAQ_sim_CUBE(sim_info):
     pool.close()
     pool.join()
     elapsed_time = time.time()-start_time
-    #pool_output = DAQ_map(L1_Slice[0])
+
+    # {'DATA_out': , 'L1_out': , 'ASICS_out':}
+    # N Blocks of data (N=n_L1)
 
     print ("SKYNET GAINED SELF-AWARENESS AFTER %d SECONDS" % elapsed_time)
 
