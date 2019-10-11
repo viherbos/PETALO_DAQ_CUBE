@@ -96,13 +96,74 @@ def DAQ_sim_CUBE(sim_info):
 
     pool.close()
     pool.join()
-    elapsed_time = time.time()-start_time
+
 
     # {'DATA_out': , 'L1_out': , 'ASICS_out':}
     # N Blocks of data (N=n_L1)
 
-    print ("SKYNET GAINED SELF-AWARENESS AFTER %d SECONDS" % elapsed_time)
 
+    # Create an array with all DATA OUT
+    SIM_OUT = []
+    lost_producers  = np.array([]).reshape(0,1)
+    lost_channels   = np.array([]).reshape(0,1)
+    lost_outlink    = np.array([]).reshape(0,1)
+    log_channels    = np.array([]).reshape(0,2)
+    log_outlink     = np.array([]).reshape(0,2)
+
+
+    lost_FIFOIN     = np.array([]).reshape(0,1)
+    lost_ETHOUT     = np.array([]).reshape(0,1)
+    log_FIFOIN      = np.array([]).reshape(0,2)
+    log_ETHOUT      = np.array([]).reshape(0,2)
+    in_time         = np.array([]).reshape(0,1)
+    out_time        = np.array([]).reshape(0,1)
+
+    for L1_i in pool_output:
+        for j in range(len(L1_i['DATA_out'])):
+            SIM_OUT.append(L1_i['DATA_out'][j])
+
+    # Gather Log information from ASICS layer
+    for L1_i in pool_output:
+        for j in L1_i['ASICS_out']:
+            lost_producers = np.vstack([lost_producers,
+                                        np.array(j['lost_producers'])])
+            lost_channels = np.vstack([lost_channels,
+                                        np.array(j['lost_channels'])])
+            lost_outlink  = np.vstack([lost_outlink,
+                                        np.array(j['lost_outlink'])])
+            log_channels  = np.vstack([log_channels,
+                                        np.array(j['log_channels'])])
+            log_outlink   = np.vstack([log_outlink,
+                                        np.array(j['log_outlink'])])
+
+    # Gather Log information from L1 layer
+    for L1_i in pool_output:
+        lost_FIFOIN = np.vstack([lost_FIFOIN,
+                                    np.array(L1_i['L1_out']['lost_FIFOIN'])])
+        lost_ETHOUT = np.vstack([lost_ETHOUT,
+                                    np.array(L1_i['L1_out']['lost_ETHOUT'])])
+        log_FIFOIN = np.vstack([log_FIFOIN,
+                                    np.array(L1_i['L1_out']['log_FIFOIN'])])
+        log_ETHOUT = np.vstack([log_ETHOUT,
+                                    np.array(L1_i['L1_out']['log_ETHOUT'])])
+
+
+    pool_output = {'DATA_out' : SIM_OUT,
+
+                   'L1_out'   : {'lost_FIFOIN':lost_FIFOIN,
+                                 'lost_ETHOUT':lost_ETHOUT,
+                                 'log_FIFOIN':log_FIFOIN,
+                                 'log_ETHOUT':log_ETHOUT},
+
+                   'ASICS_out': {'lost_producers':lost_producers,
+                                 'lost_channels':lost_channels,
+                                 'lost_outlink':lost_outlink,
+                                 'log_channels':log_channels,
+                                 'log_outlink':log_outlink}
+                    }
+
+    elapsed_time = time.time()-start_time
+    print ("SKYNET GAINED SELF-AWARENESS AFTER %d SECONDS" % elapsed_time)
 
     return pool_output,topology
 

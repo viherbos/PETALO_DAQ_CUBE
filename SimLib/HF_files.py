@@ -46,10 +46,9 @@ class DAQ_OUT_CUBE(object):
 
     def write_raw_out(self):
 
-        for i in range(len(self.pool_out)):
-            data = np.array(list(self.pool_out[i]['DATA_out'][j].values()
-                            for j in range(len(self.pool_out[i]['DATA_out'])) ))
-            self.data_np = np.vstack([self.data_np,data])
+        data = np.array(list(self.pool_out['DATA_out'][j].values()
+                        for j in range(len(self.pool_out['DATA_out'])) ))
+        self.data_np = np.vstack([self.data_np,data])
 
         topo_data = np.array(list(self.topology.values())).reshape(1,len(list(self.topology.values())))
 
@@ -60,7 +59,7 @@ class DAQ_OUT_CUBE(object):
             sensors_array = pd.DataFrame( data=self.sensors_xyz,
                                           columns=['sensor','x','y','z'])
             raw_data      = pd.DataFrame(data = self.data_np,
-                                         columns=self.pool_out[0]['DATA_out'][0].keys())
+                                         columns=self.pool_out['DATA_out'][0].keys())
             topo          = pd.DataFrame(data = topo_data,
                                          columns = list(self.topology.keys()))
 
@@ -68,7 +67,6 @@ class DAQ_OUT_CUBE(object):
             store.put('sensors',sensors_array)
             store.put('topology',topo)
             store.close()
-
 
     def process(self):
 
@@ -78,68 +76,14 @@ class DAQ_OUT_CUBE(object):
              'ASICS_out': ASICS logs}
         """
 
-        # Translate Simulation Output into an array for Data recovery
-        # SIM_OUT = {'DATA_out':[],'L1_out':[], 'ASICS_out':[]}
-        # for i in range(len(self.pool_out)):
-        #     SIM_OUT['L1_out'].extend(self.pool_out[i]['L1_out'])
-        #     SIM_OUT['DATA_out'].extend(self.pool_out[i]['DATA_out'])
-        #     for j in range(len(self.pool_out[i]['ASICS_out'])):
-        #         SIM_OUT['ASICS_out'].extend(self.pool_out[i]['ASICS_out'][j])
-
-
-        lost_producers  = np.array([]).reshape(0,1)
-        lost_channels   = np.array([]).reshape(0,1)
-        lost_outlink    = np.array([]).reshape(0,1)
-        log_channels    = np.array([]).reshape(0,2)
-        log_outlink     = np.array([]).reshape(0,2)
-
-
-        lost_FIFOIN     = np.array([]).reshape(0,1)
-        lost_ETHOUT     = np.array([]).reshape(0,1)
-        log_FIFOIN      = np.array([]).reshape(0,2)
-        log_ETHOUT      = np.array([]).reshape(0,2)
-        in_time         = np.array([]).reshape(0,1)
-        out_time        = np.array([]).reshape(0,1)
-
-        SIM_OUT         = []
-
-        # Gather Log information from ASICS layer
-        for L1_i in self.pool_out:
-            for j in L1_i['ASICS_out']:
-                lost_producers = np.vstack([lost_producers,
-                                            np.array(j['lost_producers'])])
-                lost_channels = np.vstack([lost_channels,
-                                            np.array(j['lost_channels'])])
-                lost_outlink  = np.vstack([lost_outlink,
-                                            np.array(j['lost_outlink'])])
-                log_channels  = np.vstack([log_channels,
-                                            np.array(j['log_channels'])])
-                log_outlink   = np.vstack([log_outlink,
-                                            np.array(j['log_outlink'])])
-
-        # Gather Log information from L1 layer
-        for L1_i in self.pool_out:
-            lost_FIFOIN = np.vstack([lost_FIFOIN,
-                                        np.array(L1_i['L1_out']['lost_FIFOIN'])])
-            lost_ETHOUT = np.vstack([lost_ETHOUT,
-                                        np.array(L1_i['L1_out']['lost_ETHOUT'])])
-            log_FIFOIN = np.vstack([log_FIFOIN,
-                                        np.array(L1_i['L1_out']['log_FIFOIN'])])
-            log_ETHOUT = np.vstack([log_ETHOUT,
-                                        np.array(L1_i['L1_out']['log_ETHOUT'])])
-
-
-        # Create an array with all DATA OUT
-        for L1_i in self.pool_out:
-            for j in range(len(L1_i['DATA_out'])):
-                SIM_OUT.append(L1_i['DATA_out'][j])
-
-
         # data_sit: list of ch_frame dictionaries sorted by in time (sit)
-        data_sit = sorted(SIM_OUT, key=lambda k:k['in_time'])
+        data_sit = sorted(self.pool_out['DATA_out'], key=lambda k:k['in_time'])
 
 
         data_panel = np.zeros([self.n_events,self.n_sipm],dtype=int)
+
+        in_time         = np.array([]).reshape(0,1)
+        out_time        = np.array([]).reshape(0,1)
 
         # Fill the table
         index = 0
@@ -172,20 +116,9 @@ class DAQ_OUT_CUBE(object):
 
 
         output = {'QDC_table': data_panel,
-
-                  'L1_log': {'lost_FIFOIN': lost_FIFOIN,
-                             'lost_ETHOUT': lost_ETHOUT,
-                             'log_FIFOIN' : log_FIFOIN,
-                             'log_ETHOUT' : log_ETHOUT},
-
-                  'ASICS_log': { 'lost_producers':lost_producers,
-                                 'lost_channels':lost_channels,
-                                 'lost_outlink':lost_outlink,
-                                 'log_channels':log_channels,
-                                 'log_outlink':log_outlink},
-
+                  'L1_log'   : self.pool_out['L1_out'],
+                  'ASICS_log': self.pool_out['ASICS_out'],
                   'in_time' : in_time,
-
                   'out_time': out_time
                 }
 
@@ -347,8 +280,7 @@ class CUBE_graphs(object):
 
 
         for i in self.config_file:
-            # jsonname = string.replace(i,"/","_")
-            # jsonname = string.replace(jsonname,".","")
+
             start = i.rfind("/")
             jsonname = i[start+1:]
 
@@ -374,7 +306,7 @@ class CUBE_graphs(object):
             out_time     = np.vstack([out_time,np.array(pd.read_hdf(filename,key='out_time'))])
 
 
-        #latency_L1 = log_FIFOIN[:,1]-log_channels[:,1]
+
         latency    = out_time-in_time
 
         print ("LOST DATA PRODUCER -> CH      = %d" % (lost_producers.sum()))
@@ -501,149 +433,7 @@ class CUBE_graphs(object):
                                 horizontalalignment='left',
                                 transform=new_axis.transAxes)
 
-
-        # x_data = fit.bin_centers
-        # y_data = np.add.accumulate(fit.hist_fit)/np.max(np.add.accumulate(fit.hist_fit))
-        # new_axis.plot(x_data,y_data)
-        # new_axis.set_ylim((0.9,1.0))
-        # new_axis.set_xlabel("Latency in nanoseconds")
-        # new_axis.set_ylabel("Percentage of Recovered Data")
-                # fit(latency_L1,50)
-        # fit.plot(axis = fig.add_subplot(349),
-        #         title = "L1 input Data Latency",
-        #         xlabel = "Latency in nanoseconds",
-        #         ylabel = "Hits",
-        #         res = False, fit = False)
-        # fig.add_subplot(349).text(0.99,0.8,(("WORST LATENCY = %d ns" % \
-        #                                         (max(latency_L1)))),
-        #                                         fontsize=7,
-        #                                         verticalalignment='top',
-        #                                         horizontalalignment='right',
-        #                                         transform=fig.add_subplot(349).transAxes)
-        # fig.add_subplot(349).xaxis.set_major_locator(MaxNLocator(integer=True))
-
-        #
-        # fit(compress,int(np.max(compress)))
-        # fit.plot(axis = fig.add_subplot(344),
-        #         title = "Data Frame Length",
-        #         xlabel = "Number of QDC fields",
-        #         ylabel = "Hits",
-        #         res = False,
-        #         fit = False)
-        # fig.add_subplot(344).set_yscale('log')
-        # fig.add_subplot(344).xaxis.set_major_locator(MaxNLocator(integer=True))
-        # # TOTAL NUMBER OF BITS vs COMPRESS EFFICIENCY
-        # A = np.arange(0,np.max(compress))
-        # D_data = [DAQ.L1_outframe_nbits(i) for i in A]
-        # #D_data = 1 + 7*(A>0) + A * 23 + 10     #see DAQ_infinity
-        # D_save = (A-1)*10
-        # #This is what you save when only one TDC is sent
-        #
-        # B_data = np.multiply(D_data,fit.hist)
-        # B_save = np.multiply(D_save,fit.hist)
-        # B_save[0]=0
-        # B_save[1]=0
-        # new_axis_2 = fig.add_subplot(348)
-        # x_data = fit.bin_centers
-        # new_axis_2.bar(x_data,B_data,color='r')
-        # new_axis_2.bar(x_data,B_save,color='b')
-        # new_axis_2.set_title("Data sent vs frame length")
-        # new_axis_2.set_xlabel("Length of frame in QDC data")
-        # new_axis_2.set_ylabel("Red - Data sent (bits) / Blue - Data saved (bits)")
-        #
-        # new_axis_2.text(0.99,0.97,(("TOTAL DATA SENT = %d bits\n" + \
-        #                          "DATA REDUCTION  = %d bits\n" + \
-        #                          "COMPRESS RATIO = %f \n") % \
-        #                         (np.sum(B_data),np.sum(B_save),float(np.sum(B_data))/float(np.sum(B_save)+np.sum(B_data)))),
-        #                         fontsize=8,
-        #                         verticalalignment='top',
-        #                         horizontalalignment='right',
-        #                         transform=new_axis_2.transAxes)
-        #
-        #
-        # ############### FRAME FRAGMENTATION ANALYSIS ##########################
-        # # TIME FRAGMENTATION
-        # frag_matrix = frame_frag[1:,1:]
-        # frag_matrix = frag_matrix.reshape(-1)
-        # frag_matrix = (frag_matrix>0)*frag_matrix
-        # fit(frag_matrix,range(1,int(np.max(frag_matrix))+2))
-        # print int(np.max(frag_matrix))
-        # fit.plot(axis = fig.add_subplot(3,4,11),
-        #         title = "Frame Fragmentation - (TIME)",
-        #         xlabel = "Frame pieces (Buffers)",
-        #         ylabel = "Hits",
-        #         res = False, fit = False)
-        # fig.add_subplot(3,4,11).set_yscale('log')
-        # fig.add_subplot(3,4,11).set_ylim(bottom=1)
-        # fig.add_subplot(3,4,11).xaxis.set_major_locator(MaxNLocator(integer=True))
-        #
-        # # SPATIAL FRAGMENTATION
-        # cluster_record = []
-        # frag_matrix = frame_frag[:,1:]
-        #
-        # for ev in frag_matrix:
-        #     clusters_aux = np.zeros((1,2))
-        #     clusters = np.array([]).reshape(0,2)
-        #     flag = False
-        #     L1_count = 0
-        #     # First element , Last element
-        #     for L1 in ev:
-        #         if (L1 > 0):
-        #             # Cluster detected
-        #             if (flag == False):
-        #                 # First element in the cluster
-        #                 clusters_aux[0,0] = L1_count
-        #                 clusters_aux[0,1] = L1_count
-        #                 flag = True
-        #             else:
-        #                 # Inside the cluster
-        #                 clusters_aux[0,1] = L1_count
-        #                 flag = True
-        #
-        #             if (L1_count == (n_L1-1)):
-        #                 clusters = np.vstack([clusters,clusters_aux])
-        #         else:
-        #             if (flag == True):
-        #                 # End of cluster
-        #                 flag = False
-        #                 clusters = np.vstack([clusters,clusters_aux])
-        #                 clusters_aux = np.zeros((1,2))
-        #             else:
-        #                 # No cluster detected
-        #                 flag = False
-        #
-        #         L1_count += 1
-        #
-        #     # Must solve special case of boundary cluster in circular buffer
-        #     if ((clusters[0,0] == 0) and (clusters[-1,1] == (L1_count-1))):
-        #         clusters[0,0] = clusters[-1,0]
-        #         clusters = clusters[:-1,:]
-        #
-        #     cluster_record.append(clusters)
-        #
-        # cluster_lengths = []
-        # # LET'S FIND CLUSTER LENGTHS
-        # for i in cluster_record:
-        #     for j in i:
-        #         if (j[1] >= j[0]):
-        #             cluster_lengths.append(int(j[1]-j[0]+1))
-        #         else:
-        #             cluster_lengths.append(int(j[1]-j[0]+n_L1+1))
-        #
-        # fit(cluster_lengths,range(1,int(np.max(cluster_lengths))+2))
-        # fit.plot(axis = fig.add_subplot(3,4,12),
-        #         title = "Frame Fragmentation - (SPACE)",
-        #         xlabel = "Number of L1 per event",
-        #         ylabel = "Hits",
-        #         res = False,
-        #         fit = False)
-        # fig.add_subplot(3,4,12).set_yscale('log')
-        # fig.add_subplot(3,4,12).xaxis.set_major_locator(MaxNLocator(integer=True))
-        #
-
         fig.tight_layout()
-
-        #plt.savefig(CG['ENVIRONMENT']['out_file_name']+"_"+ filename + ".pdf")
         plt.savefig(filename + ".pdf")
 
 if __name__ == "__main__":
