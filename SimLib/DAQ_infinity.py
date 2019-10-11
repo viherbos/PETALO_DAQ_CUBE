@@ -184,9 +184,6 @@ class producer(object):
                                         asic_id   = self.asic_id,
                                         in_time   = self.env.now,
                                         out_time  = 0)
-                    #np.array([self.data[self.counter],self.env.now,0])
-                    # PACKET FRAME: [SENSOR_DATA, IN_TIME, OUT_TIME]
-                    # self.lost = self.out.put(self.DATA.get_np_array(),self.lost)
                     self.lost = self.out.put(self.DATA.get_dict(),self.lost)
                 self.counter += 1
                 # Drop data. FIFO is FULL so data is lost
@@ -246,7 +243,7 @@ class FE_channel(object):
         while True:
             self.packet = yield self.res.get()
             self.msg = self.packet['data']
-            self.wilk_delay = int((self.latency/1024)*self.msg*self.gain)
+            self.wilk_delay = (self.latency/1024)*self.msg*self.gain
             if self.wilk_delay > self.latency:
                 self.wilk_delay = self.latency
             yield self.env.timeout(self.wilk_delay)
@@ -277,8 +274,8 @@ class FE_outlink(object):
         self.FIFO_out_size = param.P['TOFPET']['OUT_FIFO_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_out_size)
         self.action = env.process(self.run())
-        self.latency = int(1E9/param.P['TOFPET']['outlink_rate'])
-        self.FIFO_delay = param.P['L1']['FIFO_L1a_freq']
+        self.latency = 1.0E9/param.P['TOFPET']['outlink_rate']
+        self.FIFO_latency = 1.0E9/param.P['L1']['FIFO_L1a_freq']
         self.log = np.array([]).reshape(0,2)
         self.asic_id = asic_id
         self.out = None
@@ -295,7 +292,7 @@ class FE_outlink(object):
                 self.print_stats()
                 return lost
             else:
-                raise Full('OUT LINK FIFO is FULL')
+                raise Full('ASIC OUT LINK FIFO is FULL')
         except Full as e:
             print ("TIME: %s // %s" % (self.env.now,e.value))
             return (lost+1)
@@ -304,8 +301,8 @@ class FE_outlink(object):
         while True:
             yield self.env.timeout(self.latency)
             packet = yield self.res.get()
+            yield self.env.timeout(self.FIFO_latency)
             self.lost = self.out.put(packet,self.lost)
-            yield self.env.timeout(1.0E9/self.FIFO_delay)
             # L1 FIFO delay
 
     def __call__(self):
@@ -393,7 +390,8 @@ class L1_channel(object):
         self.FIFO_size = param.P['L1']['FIFO_L1a_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_size)
         self.action = env.process(self.run())
-        self.latency = int(1E9/param.P['L1']['FIFO_L1a_freq'])
+        self.latencyI = 1.0E9/param.P['L1']['FIFO_L1a_freq']
+        self.latencyO = 1.0E9/param.P['L1']['FIFO_L1b_freq']
         self.out = None
         self.index = 0
         self.lost = 0
@@ -418,9 +416,10 @@ class L1_channel(object):
 
     def run(self):
         while True:
-            yield self.env.timeout(self.latency)
+            yield self.env.timeout(self.latencyI)
             self.packet = yield self.res.get()
             # Read Latency
+            yield self.env.timeout(self.latencyO)
             self.lost = self.out.put(self.packet,self.lost)
 
     def __call__(self):
@@ -449,8 +448,8 @@ class L1_outlink(object):
         self.FIFO_out_size = param.P['L1']['FIFO_L1b_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_out_size)
         self.action = env.process(self.run())
-        self.latency = int(1E9/param.P['L1']['L1_outrate'])
-        self.FIFO_delay = int(1.0E9/param.P['L1']['FIFO_L1b_freq'])
+        self.latency = 1.0E9/param.P['L1']['L1_outrate']
+        self.FIFO_delay = 1.0E9/param.P['L1']['FIFO_L1b_freq']
         self.log = np.array([]).reshape(0,2)
         self.out = None
         self.lost = 0
@@ -466,9 +465,9 @@ class L1_outlink(object):
                 self.print_stats()
                 return lost
             else:
-                raise Full('OUT LINK FIFO is FULL')
+                raise Full('L1 OUT LINK FIFO is FULL')
         except Full as e:
-            print ("TIME: %s // %s" % (self.env.now,e.value))
+            print ("TIME: %s // %s" % (round(self.env.now,2),e.value))
             return (lost+1)
 
     def run(self):

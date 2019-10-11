@@ -23,6 +23,7 @@ import argparse
 import tables as tb
 
 
+# python Simpy_DAQ_CUBE.py -f -d CUBE /home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/
 
 
 def L1_exec(SiPM_Matrix_Slice, sim_info):
@@ -159,7 +160,7 @@ if __name__ == '__main__':
 
 
     # In Christoph we trust
-    timing = np.random.poisson(1E9/Param.P['ENVIRONMENT']['ch_rate'],n_events).astype(int)
+    timing = np.random.poisson(1E9/Param.P['ENVIRONMENT']['event_rate'],n_events).astype(int)
 
 
     # All sensors are given the same timestamp in an events
@@ -176,33 +177,7 @@ if __name__ == '__main__':
 
 
 
-    # Write output to file
-    # cfg_filename = file_name[file_name.rfind("/")+1:]
-    #
-    # DAQ_dump = HF.DAQ_IO(CG['ENVIRONMENT']['path_to_files'],
-    #                 CG['ENVIRONMENT']['file_name'],
-    #                 CG['ENVIRONMENT']['file_name']+"000.h5",
-    #                 CG['ENVIRONMENT']['out_file_name']+"_"+cfg_filename+".h5")
-    #
-    # logs = {  'logA':out['L1']['logA'],
-    #           'logB':out['L1']['logB'],
-    #           'logC':out['L1']['logC'],
-    #           'frame_frag':out['L1']['frag'],
-    #           'log_channels':out['ASICS']['log_channels'],
-    #           'log_outlink': out['ASICS']['log_outlink'],
-    #           'in_time': out['L1']['in_time'],
-    #           'out_time': out['L1']['out_time'],
-    #           'lost':{  'producers':out['ASICS']['lost_producers'].sum(),
-    #                     'channels' :out['ASICS']['lost_channels'].sum(),
-    #                     'outlink'  :out['ASICS']['lost_outlink'].sum(),
-    #                     'L1b'      :np.array(out['L1']['lostL1b']).sum()
-    #                   },
-    #           'compress':out['compress'],
-    #           'tstamp_event':out['tstamp_event'],
-    #           'timestamp':out['timestamp']
-    #         }
-    #
-    # DAQ_dump.write_out(data_recons,topology,logs)
+
 
 
 
@@ -211,5 +186,5 @@ if __name__ == '__main__':
     #///                     DATA ANALYSIS AND GRAPHS               ///
     #//////////////////////////////////////////////////////////////////
 
-    #graphic_out = HF.infinity_graphs_WP([file_name],path)
-    #graphic_out()
+    graphic_out = HF.CUBE_graphs([file_name],path)
+    graphic_out()
