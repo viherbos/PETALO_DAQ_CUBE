@@ -35,7 +35,6 @@ class DAQ_OUT_CUBE(object):
                                     dtype = 'float32')
         self.topology = topology
         self.pool_out = pool_out
-        self.data_np  = np.array([]).reshape(0,6)
 
         self.n_L1       = np.array(CG['L1']['L1_mapping_O']).shape[0]
         self.n_asics    = np.sum(np.array(CG['L1']['L1_mapping_O']))
@@ -45,10 +44,13 @@ class DAQ_OUT_CUBE(object):
 
 
     def write_raw_out(self):
+        # RAW data will be written in out_timt order, as generated in the real DAQ
 
-        data = np.array(list(self.pool_out['DATA_out'][j].values()
-                        for j in range(len(self.pool_out['DATA_out'])) ))
-        self.data_np = np.vstack([self.data_np,data])
+        # data_sot: list of ch_frame dictionaries sorted by out time (sot)
+        data_sot = sorted(self.pool_out['DATA_out'], key=lambda k:k['out_time'])
+        keys = data_sot[0].keys()
+        data = np.array(list(data_sot[j].values()
+                        for j in range(len(data_sot)) ))
 
         topo_data = np.array(list(self.topology.values())).reshape(1,len(list(self.topology.values())))
 
@@ -58,8 +60,7 @@ class DAQ_OUT_CUBE(object):
 
             sensors_array = pd.DataFrame( data=self.sensors_xyz,
                                           columns=['sensor','x','y','z'])
-            raw_data      = pd.DataFrame(data = self.data_np,
-                                         columns=self.pool_out['DATA_out'][0].keys())
+            raw_data      = pd.DataFrame(data = data, columns=keys)
             topo          = pd.DataFrame(data = topo_data,
                                          columns = list(self.topology.keys()))
 
