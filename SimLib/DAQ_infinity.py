@@ -156,7 +156,7 @@ class producer(object):
         timing  : reads delay from previously generated vector
     """
 
-    def __init__(self,env,data,timing,param,sensor_id,asic_id):
+    def __init__(self,env,data,timing,tdc,param,sensor_id,asic_id):
         self.env = env
         self.out = None
         # Connection with receptor
@@ -165,15 +165,26 @@ class producer(object):
         self.lost = 0
         self.data = data
         self.timing = timing
+        self.tdc = tdc
         self.TE = param.P['TOFPET']['TE']
         self.sensor_id = sensor_id
         self.asic_id = asic_id
-
+        self.time_hp = np.float64(0)
 
     def run(self):
         while self.counter < len(self.data):
 
-            yield self.env.timeout(int(self.timing[self.counter]))
+            self.time_hp = np.sum(self.timing[0:self.counter+1]) + self.tdc[self.counter]/1000.0
+            # Total time from beginning to this event
+
+            if self.counter == 0:
+                time_delay = self.timing[self.counter] + int(self.tdc[self.counter]/1000.0)
+            else:
+                time_delay =  self.timing[self.counter] \
+                             - int(self.tdc[self.counter-1]/1000.0) \
+                             + int(self.tdc[self.counter]/1000.0)
+
+            yield self.env.timeout( time_delay )
             #print_stats(env,self.out.res)
 
             try:
@@ -182,7 +193,7 @@ class producer(object):
                                         event     = self.counter,
                                         sensor_id = self.sensor_id,
                                         asic_id   = self.asic_id,
-                                        in_time   = self.env.now,
+                                        in_time   = self.time_hp,
                                         out_time  = 0)
                     self.lost = self.out.put(self.DATA.get_dict(),self.lost)
                 self.counter += 1
@@ -319,7 +330,7 @@ class FE_asic(object):
         Parameters
         sensor_id : Array with the positions of the sensors being used (param.sensors)
     """
-    def __init__(self,env,param,data,timing,sensors,asic_id):
+    def __init__(self,env,param,data,timing,tdc,sensors,asic_id):
         self.env        = env
         self.param      = param
         self.DATA       = data
@@ -327,12 +338,14 @@ class FE_asic(object):
         self.sensors    = sensors
         self.asic_id    = asic_id
         self.n_ch       = len(sensors)
+        self.tdc        = tdc
 
 
         # System Instanciation and Wiring
         self.Producer = [producer(   self.env,
                                 data       = self.DATA[:,i],
                                 timing     = self.timing,
+                                tdc        = self.tdc[:,i],
                                 param      = self.param,
                                 sensor_id  = self.sensors[i],
                                 asic_id    = self.asic_id)
@@ -508,6 +521,7 @@ class L1(object):
                                     param   = self.param,
                                     data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
                                     timing  = sim_info['timing'],
+                                    tdc     = sim_info['TDC'][:,SiPM_Matrix_Slice[i]],
                                     sensors = self.param.sensors[SiPM_Matrix_Slice[i]],
                                     asic_id = i )
                          for i in range(len(SiPM_Matrix_Slice)) ]

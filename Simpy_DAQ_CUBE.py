@@ -82,7 +82,7 @@ def DAQ_sim_CUBE(sim_info):
         # JSON file doesn't include mapping option
         L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(param.P, 'striped')
 
-    L1_exec(L1_Slice[0],sim_info)
+    #L1_exec(L1_Slice[0],sim_info)
     # Multiprocess Pool Management
     kargs = {'sim_info':sim_info}
     DAQ_map = partial(L1_exec, **kargs)
@@ -207,12 +207,14 @@ if __name__ == '__main__':
     A = HF.hdf_compose( CG['ENVIRONMENT']['path_to_files'],
                         CG['ENVIRONMENT']['file_name'],
                         n_files,n_sipms)
-    DATA,sensors,n_events = A.compose()
+    DATA,TDC,sensors,n_events = A.compose()
 
 
     # Number of events for simulation
     n_events = CG['ENVIRONMENT']['n_events']
     DATA = DATA[0:n_events,:]
+    TDC  = TDC[0:n_events,:]
+
     print (" %d EVENTS IN %d H5 FILES" % (n_events,len(n_files)))
 
 
@@ -223,9 +225,10 @@ if __name__ == '__main__':
     # In Christoph we trust
     timing = np.random.poisson(1E9/Param.P['ENVIRONMENT']['event_rate'],n_events).astype(int)
 
+    print timing
 
     # All sensors are given the same timestamp in an events
-    sim_info = {'DATA': DATA, 'timing': timing, 'Param': Param }
+    sim_info = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
 
     # Call Simulation Function
     pool_out,topology = DAQ_sim_CUBE(sim_info)

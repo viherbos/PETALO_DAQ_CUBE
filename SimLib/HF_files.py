@@ -48,6 +48,7 @@ class DAQ_OUT_CUBE(object):
 
         # data_sot: list of ch_frame dictionaries sorted by out time (sot)
         data_sot = sorted(self.pool_out['DATA_out'], key=lambda k:k['out_time'])
+
         keys = data_sot[0].keys()
         data = np.array(list(data_sot[j].values()
                         for j in range(len(data_sot)) ))
@@ -190,14 +191,15 @@ class hdf_access(object):
     def read(self):
         os.chdir(self.path)
         self.data = pd.read_hdf(self.file_name,key='MC')
-
+        self.tdc  = pd.read_hdf(self.file_name,key='TDC')
         # Reads translated hf files (table with sensor/charge per event)
         self.sensors = np.array(self.data.columns)
         self.data = np.array(self.data, dtype = 'int32')
+        self.tdc  = np.array(self.tdc , dtype = 'int32')
         self.events = self.data.shape[0]
 
         #returns data array, sensors vector, and number of events
-        return self.data,self.sensors,self.events
+        return self.data,self.tdc,self.sensors,self.events
 
     def read_DAQ_fast(self):
         file_name = self.path+self.file_name
@@ -226,28 +228,43 @@ class hdf_compose(object):
         self.n_sensors  = n_sensors
         self.data       = np.array([]).reshape(0,self.n_sensors)
         self.data_aux   = np.array([]).reshape(0,self.n_sensors)
+        self.tdc        = np.array([]).reshape(0,self.n_sensors)
+        self.tdc_aux    = np.array([]).reshape(0,self.n_sensors)
 
     def compose(self):
 
         hf = hdf_access(self.path,self.file_name + str(self.files[0]).zfill(3) + ".h5")
-        self.data_aux,self.sensors,self.events = hf.read()
+        self.data_aux,self.tdc_aux,self.sensors,self.events = hf.read()
+
         self.data = np.pad( self.data,
                             ((0,self.events),(0,0)),
                             mode='constant',
                             constant_values=0)
         self.data[-self.events:,:] = self.data_aux
 
+        self.tdc = np.pad( self.tdc,
+                            ((0,self.events),(0,0)),
+                            mode='constant',
+                            constant_values=0)
+        self.tdc[-self.events:,:] = self.tdc_aux
+
         for i in self.files:
             hf = hdf_access(self.path,self.file_name + str(i).zfill(3) + ".h5")
-            self.data_aux,self.fake,self.events = hf.read()
+            self.data_aux, self.tdc_aux, self.fake, self.events = hf.read()
+
             self.data = np.pad( self.data,
                                 ((0,self.events),(0,0)),
                                 mode='constant',
                                 constant_values=0)
             self.data[-self.events:,:] = self.data_aux
 
+            self.tdc = np.pad( self.tdc,
+                                ((0,self.events),(0,0)),
+                                mode='constant',
+                                constant_values=0)
+            self.tdc[-self.events:,:] = self.tdc_aux
 
-        return self.data, self.sensors, self.data.shape[0]
+        return self.data, self.tdc, self.sensors, self.data.shape[0]
 
 
 class CUBE_graphs(object):
