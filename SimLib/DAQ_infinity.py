@@ -169,20 +169,20 @@ class producer(object):
         self.TE = param.P['TOFPET']['TE']
         self.sensor_id = sensor_id
         self.asic_id = asic_id
-        self.time_hp = np.float64(0)
+        self.time_hp = np.int64(0)
 
     def run(self):
         while self.counter < len(self.data):
 
-            self.time_hp = np.sum(self.timing[0:self.counter+1]) + self.tdc[self.counter]/1000.0
+            self.time_hp = np.sum(self.timing[0:self.counter+1]) + self.tdc[self.counter]
             # Total time from beginning to this event
 
             if self.counter == 0:
-                time_delay = self.timing[self.counter] + int(self.tdc[self.counter]/1000.0)
+                time_delay = self.timing[self.counter] + int(self.tdc[self.counter])
             else:
                 time_delay =  self.timing[self.counter] \
-                             - int(self.tdc[self.counter-1]/1000.0) \
-                             + int(self.tdc[self.counter]/1000.0)
+                             - int(self.tdc[self.counter-1]) \
+                             + int(self.tdc[self.counter])
 
             yield self.env.timeout( time_delay )
             #print_stats(env,self.out.res)
@@ -285,8 +285,8 @@ class FE_outlink(object):
         self.FIFO_out_size = param.P['TOFPET']['OUT_FIFO_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_out_size)
         self.action = env.process(self.run())
-        self.latency = 1.0E9/param.P['TOFPET']['outlink_rate']
-        self.FIFO_latency = 1.0E9/param.P['L1']['FIFO_L1a_freq']
+        self.latency = 1.0E12/param.P['TOFPET']['outlink_rate']
+        self.FIFO_latency = 1.0E12/param.P['L1']['FIFO_L1a_freq']
         self.log = np.array([]).reshape(0,2)
         self.asic_id = asic_id
         self.out = None
@@ -403,8 +403,8 @@ class L1_channel(object):
         self.FIFO_size = param.P['L1']['FIFO_L1a_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_size)
         self.action = env.process(self.run())
-        self.latencyI = 1.0E9/param.P['L1']['FIFO_L1a_freq']
-        self.latencyO = 1.0E9/param.P['L1']['FIFO_L1b_freq']
+        self.latencyI = 1.0E12/param.P['L1']['FIFO_L1a_freq']
+        self.latencyO = 1.0E12/param.P['L1']['FIFO_L1b_freq']
         self.out = None
         self.index = 0
         self.lost = 0
@@ -461,8 +461,8 @@ class L1_outlink(object):
         self.FIFO_out_size = param.P['L1']['FIFO_L1b_depth']
         self.res = simpy.Store(self.env,capacity=self.FIFO_out_size)
         self.action = env.process(self.run())
-        self.latency = 1.0E9/param.P['L1']['L1_outrate']
-        self.FIFO_delay = 1.0E9/param.P['L1']['FIFO_L1b_freq']
+        self.latency = 1.0E12/param.P['L1']['L1_outrate']
+        self.FIFO_delay = 1.0E12/param.P['L1']['FIFO_L1b_freq']
         self.log = np.array([]).reshape(0,2)
         self.out = None
         self.lost = 0

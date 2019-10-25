@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
 
     # In Christoph we trust
-    timing = np.random.poisson(1E9/Param.P['ENVIRONMENT']['event_rate'],n_events).astype(int)
+    timing = np.random.poisson(1.0E12/Param.P['ENVIRONMENT']['event_rate'],n_events).astype(int)
 
     print timing
 
