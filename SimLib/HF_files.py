@@ -415,17 +415,17 @@ class CUBE_graphs(object):
         fit(latency,100)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "Total Data Latency",
-                xlabel = "Latency in nanoseconds",
+                xlabel = "Latency in microseconds",
                 ylabel = "Hits",
                 res = False, fit = False)
-        fig.add_subplot(pos).text(0.99,0.8,(("WORST LATENCY = %d ns" % \
-                                                (max(latency)))),
+        fig.add_subplot(pos).text(0.99,0.8,(("WORST LATENCY = %d us" % \
+                                                (max(latency)/1E6))),
                                                 fontsize=7,
                                                 verticalalignment='top',
                                                 horizontalalignment='right',
                                                 transform=fig.add_subplot(pos).transAxes)
-        fig.add_subplot(pos).text(0.99,0.7,(("MEAN LATENCY = %d ns" % \
-                                                (np.mean(latency)))),
+        fig.add_subplot(pos).text(0.99,0.7,(("MEAN LATENCY = %d ps" % \
+                                                (np.mean(latency)/1E6))),
                                                 fontsize=7,
                                                 verticalalignment='top',
                                                 horizontalalignment='right',

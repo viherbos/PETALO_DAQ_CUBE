@@ -29,7 +29,7 @@ class SIM_DATA(object):
                                         'MC_out_file_name':"FASTDAQ_OF_7mm",
                                         'time_bin': 5,
                                         'n_files' : range(4),
-                                        'n_events': 25000},
+                                        'n_events': 50000},
 
                         'SIPM'        :{'size'        :[1,6,6]},
 
@@ -46,6 +46,7 @@ class SIM_DATA(object):
                                         'IN_FIFO_depth':4,
                                         'OUT_FIFO_depth':64*4,
                                         'MAX_WILKINSON_LATENCY':5120000,
+                                        # IN PICOSECONDS !!!!
                                         'TE':2,
                                         'TGAIN':1},
 

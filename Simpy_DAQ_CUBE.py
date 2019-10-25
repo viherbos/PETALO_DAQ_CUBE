@@ -212,8 +212,8 @@ if __name__ == '__main__':
 
     # Number of events for simulation
     n_events = CG['ENVIRONMENT']['n_events']
-    DATA = DATA[0:n_events,:]
-    TDC  = TDC[0:n_events,:]
+    DATA = DATA[0:n_events,:].astype(int)
+    TDC  = TDC[0:n_events,:].astype(int)
 
     print (" %d EVENTS IN %d H5 FILES" % (n_events,len(n_files)))
 
