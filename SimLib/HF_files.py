@@ -98,7 +98,7 @@ class DAQ_OUT_CUBE(object):
             event = data_sit[i]['event']
             in_time[event,sipm]  = data_sit[i]['in_time']
             out_time[event,sipm] = data_sit[i]['out_time']
-
+            data_panel[event,sipm] =+ data_sit[i]['data']
         # for i in range(self.n_events):
         #     timestamp = data_sit[index]['in_time']
         #     in_time   = np.vstack([in_time,timestamp])

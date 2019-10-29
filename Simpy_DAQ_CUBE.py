@@ -21,7 +21,7 @@ import pandas as pd
 import math
 import argparse
 import tables as tb
-
+import itertools as it
 
 # python Simpy_DAQ_CUBE.py -f -d CUBE /home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/
 
@@ -69,6 +69,11 @@ def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
             'L1_out'   : OUTPUT_L1,
             'ASICS_out': OUTPUT_ASICS}
 
+
+def L1_exec_wrapper(args):
+    return L1_exec(*args)
+
+
 #sim_info = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
 def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
 
@@ -83,15 +88,22 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
 
     #L1_exec(L1_Slice[0],sim_info)
     # Multiprocess Pool Management
-    kargs = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
-    DAQ_map = partial(L1_exec, **kargs)
+
+    #kargs = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
+    #DAQ_map = partial(L1_exec, **kargs)
 
     start_time = time.time()
     # Multiprocess Work
     pool_size = mp.cpu_count() #// 2
     pool = mp.Pool(processes=pool_size)
 
-    pool_output = pool.map(DAQ_map, [i for i in L1_Slice])
+    #pool_output = pool.map(DAQ_map, [i for i in L1_Slice])
+
+    pool_output = pool.map(L1_exec_wrapper, it.izip([i for i in L1_Slice],
+                                                    it.repeat(DATA),
+                                                    it.repeat(timing),
+                                                    it.repeat(TDC),
+                                                    it.repeat(Param)))
 
     pool.close()
     pool.join()
