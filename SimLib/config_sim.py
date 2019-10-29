@@ -19,7 +19,7 @@ class SIM_DATA(object):
         else:
             # These are default values.
             # L1 output data frame = QDC[10] + TDC[10] + SiPM[20] = 40 bits
-            self.data= {'ENVIRONMENT'  :{'event_rate'     :0.5E6,
+            self.data= {'ENVIRONMENT'  :{'event_rate'     :0.4E6,
                                         #'event_rate'     :7.1E6,
                                         'temperature' :300,
                                         'path_to_files': "/home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/",
@@ -28,8 +28,8 @@ class SIM_DATA(object):
                                         'out_file_name':"DAQ_OF_7mm",
                                         'MC_out_file_name':"FASTDAQ_OF_7mm",
                                         'time_bin': 5,
-                                        'n_files' : range(4),
-                                        'n_events': 50000},
+                                        'n_files' : range(5),
+                                        'n_events': 35000},
 
                         'SIPM'        :{'size'        :[1,6,6]},
 

@@ -18,6 +18,7 @@ from matplotlib.ticker import MaxNLocator
 import scipy.io as SCIO
 import sipm_mapping as SM
 import string
+from SimLib import sipm_mapping as MAP
 
 
 class DAQ_OUT_CUBE(object):
@@ -70,7 +71,7 @@ class DAQ_OUT_CUBE(object):
             store.put('topology',topo)
             store.close()
 
-    def process(self):
+    def process(self,sensor_0=1000):
 
         """ POOL_OUT = Simulation Pool Output
             {'DATA_out' : ch_frame array,
@@ -84,36 +85,43 @@ class DAQ_OUT_CUBE(object):
 
         data_panel = np.zeros([self.n_events,self.n_sipm],dtype=int)
 
-        in_time         = np.array([]).reshape(0,1)
-        out_time        = np.array([]).reshape(0,1)
+        in_time         = np.zeros([self.n_events,self.n_sipm],dtype=int)
+        out_time        = np.zeros([self.n_events,self.n_sipm],dtype=int)
+
 
         # Fill the table
-        index = 0
-        count = 0
+        # index = 0
+        # count = 0
 
-        for i in range(self.n_events):
-            timestamp = data_sit[index]['in_time']
-            in_time   = np.vstack([in_time,timestamp])
-            # For a given event the time of input to the system is the timestamp
-            # but the output time is the time of the last output related to that event
+        for i in range(np.shape(data_sit)[0]):
+            sipm  = data_sit[i]['sensor_id']-sensor_0
+            event = data_sit[i]['event']
+            in_time[event,sipm]  = data_sit[i]['in_time']
+            out_time[event,sipm] = data_sit[i]['out_time']
 
-            out_stamp = 0
-            while timestamp == data_sit[count]['in_time']:
-                sensor_id = data_sit[count]['sensor_id']-1000
-                data_panel[i][sensor_id] = data_sit[count]['data']
-
-                if out_stamp < data_sit[count]['out_time']:
-                    out_stamp = data_sit[count]['out_time']
-                # Take the worst output timestamp
-
-                if count < len(data_sit)-1:
-                    count = count + 1
-                else:
-                    break
-
-            out_time  = np.vstack([out_time, out_stamp])
-
-            index = count
+        # for i in range(self.n_events):
+        #     timestamp = data_sit[index]['in_time']
+        #     in_time   = np.vstack([in_time,timestamp])
+        #     # For a given event the time of input to the system is the timestamp
+        #     # but the output time is the time of the last output related to that event
+        #
+        #     out_stamp = 0
+        #     while timestamp == data_sit[count]['in_time']:
+        #         sensor_id = data_sit[count]['sensor_id']-1000
+        #         data_panel[i][sensor_id] = data_sit[count]['data']
+        #
+        #         if out_stamp < data_sit[count]['out_time']:
+        #             out_stamp = data_sit[count]['out_time']
+        #         # Take the worst output timestamp
+        #
+        #         if count < len(data_sit)-1:
+        #             count = count + 1
+        #         else:
+        #             break
+        #
+        #     out_time  = np.vstack([out_time, out_stamp])
+        #
+        #     index = count
 
 
 
@@ -281,6 +289,9 @@ class CUBE_graphs(object):
         CG   = CFG.SIM_DATA(filename = config_file,read = True)
         CG   = CG.data
         n_L1 = np.array(CG['L1']['L1_mapping_O']).shape[0]
+        n_sipms_int = CG['TOPOLOGY']['sipm_int_row']*CG['TOPOLOGY']['n_rows']
+        n_sipms_ext = CG['TOPOLOGY']['sipm_ext_row']*CG['TOPOLOGY']['n_rows']
+        n_sipms     = n_sipms_int + n_sipms_ext
 
         log_ETHOUT   = np.array([]).reshape(0,2)
         log_FIFOIN   = np.array([]).reshape(0,2)
@@ -293,8 +304,8 @@ class CUBE_graphs(object):
         lost_channels = np.array([]).reshape(0,1)
         lost_producers = np.array([]).reshape(0,1)
 
-        in_time      = np.array([]).reshape(0,1)
-        out_time     = np.array([]).reshape(0,1)
+        in_time      = np.array([]).reshape(0,n_sipms)
+        out_time     = np.array([]).reshape(0,n_sipms)
 
 
         for i in self.config_file:
@@ -308,6 +319,7 @@ class CUBE_graphs(object):
             chain = CG['ENVIRONMENT']['out_file_name'][CG['ENVIRONMENT']['out_file_name'].rfind("./")+1:]
             filename = chain + "_" + jsonname + ".h5"
             filename = self.data_path + filename
+
 
             log_ETHOUT   = np.vstack([log_ETHOUT,np.array(pd.read_hdf(filename,key='log_ETHOUT'))])
             log_FIFOIN   = np.vstack([log_FIFOIN,np.array(pd.read_hdf(filename,key='log_FIFOIN'))])
@@ -324,8 +336,54 @@ class CUBE_graphs(object):
             out_time     = np.vstack([out_time,np.array(pd.read_hdf(filename,key='out_time'))])
 
 
+        # Parameter computation
+        latency    = np.max((out_time-in_time)/1E6,axis=1)
 
-        latency    = out_time-in_time
+        # CRT
+        ring_length = CG['TOPOLOGY']['sipm_ext_row']
+        # Mapping Function
+        try:
+            style = CG['L1']['map_style']
+            L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(CG, style)
+        except:
+            # JSON file doesn't include mapping option
+            L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(CG, 'striped')
+
+        ring_dim     = SiPM_Matrix_O.shape
+        in_time_M    = np.ma.MaskedArray(in_time,in_time<1)
+        gamma1_sipm  = np.ma.argmin(in_time_M,axis=1)
+        gamma1_tdc   = np.ma.filled(np.ma.min(in_time_M,axis=1))
+        print gamma1_sipm
+        gamma2_sipm  = np.zeros(gamma1_sipm.shape)
+        gamma2_tdc   = np.zeros(gamma1_sipm.shape)
+
+        for i in range(CG['ENVIRONMENT']['n_events']):
+            gamma1_coord = np.where(SiPM_Matrix_O==gamma1_sipm[i])
+            # Roll SiPM Matrixes to find opposite side of detector
+            Xe = np.roll(SiPM_Matrix_O,-gamma1_coord[1]+ring_dim[1]//4,axis=1)
+            # Select opposite side of detector
+            Xe_sel = Xe[:,ring_dim[1]//2:]
+            Xe_sel_1D = Xe_sel.reshape(-1)
+            try:
+                gamma2_tdc[i] = np.ma.min(in_time_M[i,Xe_sel_1D])
+            except:
+                gamma2_tdc[i] = 0
+
+            # print "gamma1_coord = ",gamma1_coord[1]
+            # print "gamma1_tdc = ",gamma1_tdc[i]
+            # print "gamma2_tdc = ",gamma2_tdc[i]
+            # print "TOF = ",gamma1_tdc[i]-gamma2_tdc[i]
+            #gamma2_sipm[i] = Xe_sel_1D[np.argmin(in_time[i,Xe_sel_1D])]
+
+        # Get rid of singles
+        TOF = gamma1_tdc - gamma2_tdc
+        TOF = TOF[np.logical_not(np.isnan(TOF))]
+        print TOF.shape
+        # Introduce a random sign to symmetrize distribution
+        random_sign = (np.random.rand(TOF.shape[0])>0.5)*-1
+        random_sign = random_sign + random_sign + 1
+        TOF = TOF * random_sign
+
 
         print ("LOST DATA PRODUCER -> CH      = %d" % (lost_producers.sum()))
         print ("LOST DATA CHANNELS -> OUTLINK = %d" % (lost_channels.sum()))
@@ -344,7 +402,7 @@ class CUBE_graphs(object):
         fit = fit_library.gauss_fit()
         fig = plt.figure(figsize=(15,10))
 
-        pos = 331
+        pos = 431
         fit(log_channels[:,0],range(1,CG['TOFPET']['IN_FIFO_depth']+2))
         fit.plot(axis = fig.add_subplot(pos),
                 title = "ASICS Channel Input analog FIFO (4)",
@@ -360,7 +418,7 @@ class CUBE_graphs(object):
                                                 horizontalalignment='right',
                                                 transform=fig.add_subplot(pos).transAxes)
 
-        pos = 332
+        pos = 432
         fit(log_asicout[:,0],CG['TOFPET']['OUT_FIFO_depth']/10)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "ASICS Channels -> Outlink",
@@ -376,7 +434,7 @@ class CUBE_graphs(object):
                                                 horizontalalignment='right',
                                                 transform=fig.add_subplot(pos).transAxes)
 
-        pos = 334
+        pos = 434
         fit(log_FIFOIN[:,0],CG['L1']['FIFO_L1a_depth']/10)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "ASICS -> L1A (FIFOIN)",
@@ -394,7 +452,7 @@ class CUBE_graphs(object):
         fig.add_subplot(pos).xaxis.set_major_locator(MaxNLocator(integer=True))
 
 
-        pos = 335
+        pos = 435
         fit(log_ETHOUT[:,0],CG['L1']['FIFO_L1b_depth']/10)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "L1 OUTPUT (ETHOUT)",
@@ -411,21 +469,21 @@ class CUBE_graphs(object):
                                                 transform=fig.add_subplot(pos).transAxes)
         fig.add_subplot(pos).xaxis.set_major_locator(MaxNLocator(integer=True))
 
-        pos = 336
+        pos = 436
         fit(latency,100)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "Total Data Latency",
                 xlabel = "Latency in microseconds",
                 ylabel = "Hits",
                 res = False, fit = False)
-        fig.add_subplot(pos).text(0.99,0.8,(("WORST LATENCY = %d us" % \
-                                                (max(latency)/1E6))),
+        fig.add_subplot(pos).text(0.99,0.8,(("WORST LATENCY = %f us" % \
+                                                (max(latency)))),
                                                 fontsize=7,
                                                 verticalalignment='top',
                                                 horizontalalignment='right',
                                                 transform=fig.add_subplot(pos).transAxes)
-        fig.add_subplot(pos).text(0.99,0.7,(("MEAN LATENCY = %d ps" % \
-                                                (np.mean(latency)/1E6))),
+        fig.add_subplot(pos).text(0.99,0.7,(("MEAN LATENCY = %f us" % \
+                                                (np.mean(latency)))),
                                                 fontsize=7,
                                                 verticalalignment='top',
                                                 horizontalalignment='right',
@@ -433,9 +491,9 @@ class CUBE_graphs(object):
         fig.add_subplot(pos).xaxis.set_major_locator(MaxNLocator(integer=True))
 
 
-        pos = 333
+        pos = 433
         new_axis = fig.add_subplot(pos)
-        new_axis.text(0.05,0.9,(("LOST DATA PRODUCER -> CH           = %d\n" + \
+        new_axis.text(0.05,0.8,(("LOST DATA PRODUCER -> CH           = %d\n" + \
                                  "LOST DATA CHANNELS -> OUTLINK  = %d\n" + \
                                  "LOST DATA OUTLINK -> L1                = %d\n" + \
                                  "LOST DATA L1A -> L1B                      = %d\n" + \
@@ -450,6 +508,25 @@ class CUBE_graphs(object):
                                 verticalalignment='top',
                                 horizontalalignment='left',
                                 transform=new_axis.transAxes)
+
+        pos = 437
+        range_tof_h = TOF<5000
+        range_tof_l = TOF>-5000
+        range_tof = range_tof_l * range_tof_h
+        fit(TOF[range_tof],100)
+        fit.plot(axis = fig.add_subplot(pos),
+                title = "Time of Flight ",
+                xlabel = "Time Stamp in picoseconds",
+                ylabel = "Hits",
+                res = True, fit =True)
+
+        new_axis.text(0.05,0.9,(("Time of Flight Resolution = %d\n") % \
+                                (lost_producers.sum())),
+                                fontsize=8,
+                                verticalalignment='top',
+                                horizontalalignment='left',
+                                transform=new_axis.transAxes)
+
 
         fig.tight_layout()
         plt.savefig(filename + ".pdf")
