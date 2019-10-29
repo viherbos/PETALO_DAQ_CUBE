@@ -26,7 +26,7 @@ import tables as tb
 # python Simpy_DAQ_CUBE.py -f -d CUBE /home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/
 
 
-def L1_exec(SiPM_Matrix_Slice, sim_info):
+def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
     """ Executes L1 behavior in Simulation
         Input:  SiPM_Matrix_Slice
         Output: { 'DATA_out' : Output data stream,
@@ -47,7 +47,7 @@ def L1_exec(SiPM_Matrix_Slice, sim_info):
 
     # Create instance of L1
     L1_instance    = DAQ.L1( env         = env,
-                             sim_info    = sim_info,
+                             sim_info    = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param },
                              SiPM_Matrix_Slice = SiPM_Matrix_Slice)
 
     DRAIN_instance = DAQ.DATA_drain( out_stream = data_out,
@@ -69,22 +69,21 @@ def L1_exec(SiPM_Matrix_Slice, sim_info):
             'L1_out'   : OUTPUT_L1,
             'ASICS_out': OUTPUT_ASICS}
 
-
-def DAQ_sim_CUBE(sim_info):
-    param = sim_info['Param']
+#sim_info = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
+def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
 
     # Generation of Iterable for pool.map
     # Mapping Function
     try:
-        style = param.P['L1']['map_style']
-        L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(param.P, style)
+        style = Param.P['L1']['map_style']
+        L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(Param.P, style)
     except:
         # JSON file doesn't include mapping option
-        L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(param.P, 'striped')
+        L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(Param.P, 'striped')
 
     #L1_exec(L1_Slice[0],sim_info)
     # Multiprocess Pool Management
-    kargs = {'sim_info':sim_info}
+    kargs = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
     DAQ_map = partial(L1_exec, **kargs)
 
     start_time = time.time()
@@ -212,8 +211,8 @@ if __name__ == '__main__':
 
     # Number of events for simulation
     n_events = CG['ENVIRONMENT']['n_events']
-    DATA = DATA[0:n_events,:]
-    TDC  = TDC[0:n_events,:]
+    DATA = DATA[0:n_events,:].astype(int)
+    TDC  = TDC[0:n_events,:].astype(int)
 
     print (" %d EVENTS IN %d H5 FILES" % (n_events,len(n_files)))
 
@@ -223,15 +222,14 @@ if __name__ == '__main__':
 
 
     # In Christoph we trust
-    timing = np.random.poisson(1E9/Param.P['ENVIRONMENT']['event_rate'],n_events).astype(int)
+    timing = np.random.poisson(1.0E12/Param.P['ENVIRONMENT']['event_rate'],n_events).astype(int)
 
-    print timing
 
     # All sensors are given the same timestamp in an events
     sim_info = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
 
     # Call Simulation Function
-    pool_out,topology = DAQ_sim_CUBE(sim_info)
+    pool_out,topology = DAQ_sim_CUBE(**sim_info)
 
 
     POUT = HF.DAQ_OUT_CUBE(file_name, CG, pool_out, topology)
