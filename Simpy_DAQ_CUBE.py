@@ -47,7 +47,10 @@ def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
 
     # Create instance of L1
     L1_instance    = DAQ.L1( env         = env,
-                             sim_info    = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param },
+                             sim_info    = {'DATA': DATA,
+                                            'timing': timing,
+                                            'TDC':TDC,
+                                            'Param': Param },
                              SiPM_Matrix_Slice = SiPM_Matrix_Slice)
 
     DRAIN_instance = DAQ.DATA_drain( out_stream = data_out,
@@ -99,10 +102,28 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
 
     #pool_output = pool.map(DAQ_map, [i for i in L1_Slice])
 
+    #DATA ARRANGING for POOL Processing
+
+    n_events = Param.P['ENVIRONMENT']['n_events']
+    n_L1     = topology['n_L1']
+
+    for i in range(n_L1):
+        Slice = np.sort(np.array(L1_Slice[i],dtype=int).reshape(-1))
+        n_sipms_L1 = Slice.shape[0]
+        DATA_a = np.zeros((n_events,n_sipms_L1,n_L1),dtype=int)
+        TDC_a  = np.zeros((n_events,n_sipms_L1,n_L1),dtype=int)
+
+        for j in range(n_events):
+            for k in range(n_sipms_L1):
+                DATA_a[j,k,i] = DATA[j,Slice[k]]
+                TDC_a[j,k,i]  = TDC[j,Slice[k]]
+
+
     pool_output = pool.map(L1_exec_wrapper, it.izip([i for i in L1_Slice],
-                                                    it.repeat(DATA),
+                                                    #it.repeat(DATA),
+                                                    [DATA_a[:,:,i] for i in range(n_L1)],
                                                     it.repeat(timing),
-                                                    it.repeat(TDC),
+                                                    [TDC_a[:,:,i] for i in range(n_L1)],
                                                     it.repeat(Param)))
 
     pool.close()

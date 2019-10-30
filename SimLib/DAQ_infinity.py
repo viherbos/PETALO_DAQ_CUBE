@@ -519,9 +519,9 @@ class L1(object):
 
         self.ASICS   = [ FE_asic(   env     = self.env,
                                     param   = self.param,
-                                    data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
+                                    data    = sim_info['DATA'][:,i],#SiPM_Matrix_Slice[i]],
                                     timing  = sim_info['timing'],
-                                    tdc     = sim_info['TDC'][:,SiPM_Matrix_Slice[i]],
+                                    tdc     = sim_info['TDC'][:,i],#SiPM_Matrix_Slice[i]],
                                     sensors = self.param.sensors[SiPM_Matrix_Slice[i]],
                                     asic_id = i )
                          for i in range(len(SiPM_Matrix_Slice)) ]
