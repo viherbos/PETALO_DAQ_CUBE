@@ -29,7 +29,7 @@ class SIM_DATA(object):
                                         'MC_out_file_name':"FASTDAQ_OF_7mm",
                                         'time_bin': 5,
                                         'n_files' : range(5),
-                                        'n_events': 35000},
+                                        'n_events': 100000},
 
                         'SIPM'        :{'size'        :[1,6,6]},
 
