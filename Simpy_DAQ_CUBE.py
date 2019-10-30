@@ -89,18 +89,13 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
         # JSON file doesn't include mapping option
         L1_Slice, SiPM_Matrix_I, SiPM_Matrix_O, topology = MAP.SiPM_Mapping(Param.P, 'striped')
 
-    #L1_exec(L1_Slice[0],sim_info)
     # Multiprocess Pool Management
-
-    #kargs = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
-    #DAQ_map = partial(L1_exec, **kargs)
 
     start_time = time.time()
     # Multiprocess Work
     pool_size = mp.cpu_count() #// 2
-    pool = mp.Pool(processes=pool_size)
+    #pool = mp.Pool(processes=pool_size)
 
-    #pool_output = pool.map(DAQ_map, [i for i in L1_Slice])
 
     #DATA ARRANGING for POOL Processing
 
@@ -108,7 +103,7 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
     n_L1     = topology['n_L1']
 
     for i in range(n_L1):
-        Slice = np.sort(np.array(L1_Slice[i],dtype=int).reshape(-1))
+        Slice = np.sort(np.array(list(it.chain(*L1_Slice[i])),dtype=int).reshape(-1))
         n_sipms_L1 = Slice.shape[0]
         DATA_a = np.zeros((n_events,n_sipms_L1,n_L1),dtype=int)
         TDC_a  = np.zeros((n_events,n_sipms_L1,n_L1),dtype=int)
@@ -119,15 +114,17 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
                 TDC_a[j,k,i]  = TDC[j,Slice[k]]
 
 
-    pool_output = pool.map(L1_exec_wrapper, it.izip([i for i in L1_Slice],
-                                                    #it.repeat(DATA),
-                                                    [DATA_a[:,:,i] for i in range(n_L1)],
-                                                    it.repeat(timing),
-                                                    [TDC_a[:,:,i] for i in range(n_L1)],
-                                                    it.repeat(Param)))
+    L1_exec_wrapper((L1_Slice[0],DATA_a[:,:,0],timing,TDC_a[:,:,0],Param))
 
-    pool.close()
-    pool.join()
+    # pool_output = pool.map(L1_exec_wrapper, it.izip([i for i in L1_Slice],
+    #                                                 #it.repeat(DATA),
+    #                                                 [DATA_a[:,:,i] for i in range(n_L1)],
+    #                                                 it.repeat(timing),
+    #                                                 [TDC_a[:,:,i] for i in range(n_L1)],
+    #                                                 it.repeat(Param)))
+    #
+    # pool.close()
+    # pool.join()
 
 
     # {'DATA_out': , 'L1_out': , 'ASICS_out':}
