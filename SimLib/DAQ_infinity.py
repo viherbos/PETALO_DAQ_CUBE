@@ -10,6 +10,7 @@ import os
 import pandas as pd
 import math
 import sipm_mapping as MAP
+from SimLib import shared_stuff as ss
 
 
 
@@ -519,9 +520,11 @@ class L1(object):
 
         self.ASICS   = [ FE_asic(   env     = self.env,
                                     param   = self.param,
-                                    data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
+                                    #data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
+                                    data    = ss.DATA_g[:,SiPM_Matrix_Slice[i]],
                                     timing  = sim_info['timing'],
-                                    tdc     = sim_info['TDC'][:,SiPM_Matrix_Slice[i]],
+                                    #tdc     = sim_info['TDC'][:,SiPM_Matrix_Slice[i]],
+                                    tdc     = ss.TDC_g[:,SiPM_Matrix_Slice[i]],
                                     sensors = self.param.sensors[SiPM_Matrix_Slice[i]],
                                     asic_id = i )
                          for i in range(len(SiPM_Matrix_Slice)) ]

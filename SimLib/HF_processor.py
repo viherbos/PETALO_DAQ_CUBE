@@ -49,7 +49,7 @@ class HF2MAT(object):
 
 
     def write(self,iter=False):
-        with pd.HDFStore(self.out_file) as store:
+        with pd.HDFStore(self.out_file,complib='bzip2',complevel=9) as store:
             self.panel_array  = pd.DataFrame( data=self.out_table_QDC,
                                               columns=self.sensors)
 
@@ -174,7 +174,8 @@ def TRANS_gen(index,path,filename,outfile):
 
 if __name__ == "__main__":
 
-    kargs = {'path'     :"/home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/",
+    kargs = {#'path'     :"/home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/",
+             'path'     :"/mnt/715c6d30-57c4-4aed-a982-551291d8f848/NEUTRINOS/",
 	         'filename' :"full_ring_iradius165mm_z140mm_depth3cm_pitch7mm.",
              'outfile'  :"p_RING_7mm_6x6_"}
     # kargs = {'path'     :"/mnt/715c6d30-57c4-4aed-a982-551291d8f848/PETIT_MC_DATA/",
@@ -187,7 +188,7 @@ if __name__ == "__main__":
     pool_size = mp.cpu_count()
     pool = mp.Pool(processes=pool_size)
 
-    pool.map(TRANS_map, [i for i in range(0,7)])
+    pool.map(TRANS_map, [i for i in [0,1,2,3,4,5,6,7,10,11,12,13,14,15,16,17]])
     # Range of Files to Translate
 
     pool.close()

@@ -22,11 +22,14 @@ import math
 import argparse
 import tables as tb
 import itertools as it
+from SimLib import shared_stuff as ss
 
 # python Simpy_DAQ_CUBE.py -f -d CUBE /home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/
 
 
-def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
+#def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
+def L1_exec(SiPM_Matrix_Slice, timing, Param):
+
     """ Executes L1 behavior in Simulation
         Input:  SiPM_Matrix_Slice
         Output: { 'DATA_out' : Output data stream,
@@ -47,7 +50,8 @@ def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
 
     # Create instance of L1
     L1_instance    = DAQ.L1( env         = env,
-                             sim_info    = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param },
+                             #sim_info    = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param },
+                             sim_info    = {'timing': timing, 'Param': Param },
                              SiPM_Matrix_Slice = SiPM_Matrix_Slice)
 
     DRAIN_instance = DAQ.DATA_drain( out_stream = data_out,
@@ -57,7 +61,7 @@ def L1_exec(SiPM_Matrix_Slice, DATA, timing, TDC, Param):
 
 
     # Run Simulation for a very long time (100sec) to force flush of FIFOs
-    env.run(until = 100E9)
+    env.run(until = 100E12)
 
     OUTPUT_L1      = L1_instance()
     OUTPUT_Drain   = DRAIN_instance()
@@ -74,8 +78,8 @@ def L1_exec_wrapper(args):
     return L1_exec(*args)
 
 
-#sim_info = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
-def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
+#def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
+def DAQ_sim_CUBE( timing, Param ):
 
     # Generation of Iterable for pool.map
     # Mapping Function
@@ -100,9 +104,9 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
     #pool_output = pool.map(DAQ_map, [i for i in L1_Slice])
 
     pool_output = pool.map(L1_exec_wrapper, it.izip([i for i in L1_Slice],
-                                                    it.repeat(DATA),
+                                                    #it.repeat(DATA),
                                                     it.repeat(timing),
-                                                    it.repeat(TDC),
+                                                    #it.repeat(TDC),
                                                     it.repeat(Param)))
 
     pool.close()
@@ -180,7 +184,6 @@ def DAQ_sim_CUBE( DATA, timing, TDC, Param ):
 
 
 
-
 if __name__ == '__main__':
 
     # Argument parser for config file name
@@ -223,8 +226,9 @@ if __name__ == '__main__':
 
     # Number of events for simulation
     n_events = CG['ENVIRONMENT']['n_events']
-    DATA = DATA[0:n_events,:].astype(int)
-    TDC  = TDC[0:n_events,:].astype(int)
+
+    ss.DATA_g = DATA[0:n_events,:].astype(int)
+    ss.TDC_g  = TDC[0:n_events,:].astype(int)
 
     print (" %d EVENTS IN %d H5 FILES" % (n_events,len(n_files)))
 
@@ -238,7 +242,8 @@ if __name__ == '__main__':
 
 
     # All sensors are given the same timestamp in an events
-    sim_info = {'DATA': DATA, 'timing': timing, 'TDC':TDC, 'Param': Param }
+    #sim_info = {'DATA': DATA_g, 'timing': timing, 'TDC':TDC_g, 'Param': Param }
+    sim_info = {'timing': timing, 'Param': Param }
 
     # Call Simulation Function
     pool_out,topology = DAQ_sim_CUBE(**sim_info)

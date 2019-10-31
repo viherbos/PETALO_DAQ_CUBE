@@ -58,7 +58,7 @@ class DAQ_OUT_CUBE(object):
 
         os.chdir(self.path)
         with pd.HDFStore(self.daq_outfile_raw,
-                        complevel=9, complib='zlib') as store:
+                        complevel=9, complib='bzip2') as store:
 
             sensors_array = pd.DataFrame( data=self.sensors_xyz,
                                           columns=['sensor','x','y','z'])
@@ -142,7 +142,7 @@ class DAQ_OUT_CUBE(object):
 
         os.chdir(self.path)
         with pd.HDFStore(self.daq_outfile,
-                        complevel=9, complib='zlib') as store:
+                        complevel=9, complib='bzip2') as store:
 
             sensors_array = pd.DataFrame( data=self.sensors_xyz,
                                           columns=['sensor','x','y','z'])
@@ -470,7 +470,7 @@ class CUBE_graphs(object):
         fig.add_subplot(pos).xaxis.set_major_locator(MaxNLocator(integer=True))
 
         pos = 436
-        fit(latency,100)
+        fit(latency,80)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "Total Data Latency",
                 xlabel = "Latency in microseconds",
@@ -510,15 +510,15 @@ class CUBE_graphs(object):
                                 transform=new_axis.transAxes)
 
         pos = 437
-        range_tof_h = TOF<5000
-        range_tof_l = TOF>-5000
+        range_tof_h = TOF<2000
+        range_tof_l = TOF>-2000
         range_tof = range_tof_l * range_tof_h
         fit(TOF[range_tof],100)
         fit.plot(axis = fig.add_subplot(pos),
                 title = "Time of Flight ",
                 xlabel = "Time Stamp in picoseconds",
                 ylabel = "Hits",
-                res = True, fit =True)
+                res = False, fit =True)
 
         new_axis.text(0.05,0.9,(("Time of Flight Resolution = %d\n") % \
                                 (lost_producers.sum())),
