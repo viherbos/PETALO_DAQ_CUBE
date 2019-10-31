@@ -60,8 +60,8 @@ def L1_exec(SiPM_Matrix_Slice, timing, Param):
     L1_instance.ETH_OUT.out = DRAIN_instance
 
 
-    # Run Simulation for a very long time (100sec) to force flush of FIFOs
-    env.run(until = 100E12)
+    # Run Simulation for a very long time to force flush of FIFOs
+    env.run(until = 1E12*Param.P['ENVIRONMENT']['n_events']/Param.P['ENVIRONMENT']['event_rate'])
 
     OUTPUT_L1      = L1_instance()
     OUTPUT_Drain   = DRAIN_instance()
