@@ -168,29 +168,34 @@ class producer(object):
         self.timing = timing
         self.tdc = tdc
         self.TE = param.P['TOFPET']['TE']
+        self.n_events = param.P['ENVIRONMENT']['n_events']
         self.sensor_id = sensor_id
         self.asic_id = asic_id
         self.time_hp = 0
 
     def run(self):
-        while self.counter < len(self.data):
+        while self.counter < self.n_events:
 
-            self.time_hp = np.sum(self.timing[0:self.counter+1]) + self.tdc[self.counter]
-            # Total time from beginning to this event
+            QDC_ev = ss.DATA_g[self.counter, int(self.data)]
+            TDC_ev   = ss.TDC_g[self.counter, int(self.tdc)]
 
             if self.counter == 0:
-                time_delay = self.timing[self.counter] + int(self.tdc[self.counter])
+                time_delay = self.timing[self.counter] + TDC_ev
             else:
-                time_delay =  self.timing[self.counter] \
-                             - int(self.tdc[self.counter-1]) \
-                             + int(self.tdc[self.counter])
+                TDC_ev_1 = ss.TDC_g[self.counter-1, int(self.tdc)]
+                time_delay =  self.timing[self.counter] - TDC_ev_1 + TDC_ev
+            # Time delay for next event
+
+            self.time_hp = np.sum(self.timing[0:self.counter+1]) + TDC_ev
+            # Total time from beginning to this event
+
 
             yield self.env.timeout( time_delay )
             #print_stats(env,self.out.res)
 
             try:
-                if self.data[self.counter]>self.TE:
-                    self.DATA = ch_frame(data     = self.data[self.counter],
+                if QDC_ev > self.TE:
+                    self.DATA = ch_frame(data     = QDC_ev,
                                         event     = self.counter,
                                         sensor_id = self.sensor_id,
                                         asic_id   = self.asic_id,
@@ -344,9 +349,9 @@ class FE_asic(object):
 
         # System Instanciation and Wiring
         self.Producer = [producer(   self.env,
-                                data       = self.DATA[:,i],
+                                data       = self.DATA[i],
                                 timing     = self.timing,
-                                tdc        = self.tdc[:,i],
+                                tdc        = self.tdc[i],
                                 param      = self.param,
                                 sensor_id  = self.sensors[i],
                                 asic_id    = self.asic_id)
@@ -521,10 +526,10 @@ class L1(object):
         self.ASICS   = [ FE_asic(   env     = self.env,
                                     param   = self.param,
                                     #data    = sim_info['DATA'][:,SiPM_Matrix_Slice[i]],
-                                    data    = ss.DATA_g[:,SiPM_Matrix_Slice[i]],
+                                    data    = SiPM_Matrix_Slice[i], #ss.DATA_g[:,SiPM_Matrix_Slice[i]],
                                     timing  = sim_info['timing'],
                                     #tdc     = sim_info['TDC'][:,SiPM_Matrix_Slice[i]],
-                                    tdc     = ss.TDC_g[:,SiPM_Matrix_Slice[i]],
+                                    tdc     = SiPM_Matrix_Slice[i], #ss.TDC_g[:,SiPM_Matrix_Slice[i]],
                                     sensors = self.param.sensors[SiPM_Matrix_Slice[i]],
                                     asic_id = i )
                          for i in range(len(SiPM_Matrix_Slice)) ]
@@ -565,10 +570,14 @@ class DATA_drain(object):
     def __init__(self, out_stream, env):
         self.out_stream = out_stream
         self.env = env
+        self.event = 0
 
     def put(self, packet):
         packet['out_time'] = self.env.now
         # Insert output time stamp
+        if packet['event'] > self.event:
+            self.event = packet['event']
+            print ("Processing Event: %d" % self.event)
         self.out_stream.append(packet)
 
     def __call__(self):
