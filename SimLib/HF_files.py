@@ -376,7 +376,7 @@ class CUBE_graphs(object):
             #gamma2_sipm[i] = Xe_sel_1D[np.argmin(in_time[i,Xe_sel_1D])]
 
         # Get rid of singles
-        TOF = gamma1_tdc - gamma2_tdc
+        TOF = (gamma1_tdc - gamma2_tdc)/2
         TOF = TOF[np.logical_not(np.isnan(TOF))]
         print TOF.shape
         # Introduce a random sign to symmetrize distribution
