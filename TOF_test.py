@@ -267,7 +267,8 @@ if __name__ == '__main__':
     # 100 ps is a rough estimation based on crosstalk limit due to feedtrough design
     # Fall time constant is realistic, based on bibliography and measurements
 
-    TE_range = [0.25,0.5,0.75,1.0,1.5,2.0,2.5,3.0]
+    TE_range = [1.5,2.0]
+    n_files = 12
     time_bin = 5
     TOF_TE_TDC = []
 
@@ -278,7 +279,7 @@ if __name__ == '__main__':
         TOF = np.array([])
         start_time = time.time()
         #############################
-        for i in range(4):
+        for i in range(n_files):
             TDC = TOF_compute(path ,name+"."+str(i).zfill(3)+".pet.h5",
                              SIPM        = SIPM,
                              Matrix_O    = Matrix_O,
@@ -286,7 +287,8 @@ if __name__ == '__main__':
                              TE_TDC      = TE_range[j],
                              TE_E        = [1000,1600],
                              time_bin    = time_bin)
-
+            event_min = np.min(TDC.tof_wave[:,0])
+            event_max = np.max(TDC.tof_wave[:,0])
             # Multiprocessing
 
             def TOF_comp_wrapper(args):
@@ -297,8 +299,8 @@ if __name__ == '__main__':
             #TOF_comp_wrapper(100)
 
             pool_size = mp.cpu_count()
-            pool = mp.Pool(processes=8)
-            pool_output = pool.map(TOF_comp_wrapper, zip([i for i in range(0,25000)],it.repeat("conv")))
+            pool = mp.Pool(processes=18)
+            pool_output = pool.map(TOF_comp_wrapper, zip([i for i in range(event_min,event_max+1)],it.repeat("conv")))
             #time_window, TE_TDC, ev_range, TE_E
             pool.close()
             pool.join()
@@ -317,7 +319,7 @@ if __name__ == '__main__':
 
 
     os.chdir("/volumedisk0/home/viherbos/DAQ_data/")
-    with pd.HDFStore("TOF.h5",complevel=9, complib='zlib') as store:
+    with pd.HDFStore("TOF_15_2.h5",complevel=9, complib='zlib') as store:
         TE_range = pd.DataFrame(data=TE_range)
         TOF_data = pd.DataFrame(data=TOF_TE_TDC)
         store.put('TE_range',TE_range)

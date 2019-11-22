@@ -109,7 +109,7 @@ class double_exp_fit(fitting_nohist):
                                        guess=guess)
 
     def plot(self,axis,title,xlabel,ylabel,res=True,fit=True):
-        #axis.hist(self.data, self.bins, align='left', facecolor='green', edgecolor='white', linewidth=0.5)
+        #axis.hist(self.data, self.bins, align='mid', facecolor='green', edgecolor='white', linewidth=0.5)
         axis.set_xlabel(xlabel)
         axis.set_ylabel(ylabel)
         axis.set_title(title)
@@ -140,7 +140,7 @@ class Ddouble_exp_fit(fitting_nohist):
                                        guess=guess)
 
     def plot(self,axis,title,xlabel,ylabel,res=True,fit=True):
-        #axis.hist(self.data, self.bins, align='left', facecolor='green', edgecolor='white', linewidth=0.5)
+        #axis.hist(self.data, self.bins, align='mid', facecolor='green', edgecolor='white', linewidth=0.5)
         axis.set_xlabel(xlabel)
         axis.set_ylabel(ylabel)
         axis.set_title(title)
@@ -176,13 +176,14 @@ class GND_fit(fitting):
         self.GND = GND
         self.p0 = [np.std(data), 1, 1, np.mean(data)]
         # First guess
-        super(GND_fit,self).__call__(data=data,
-                                     bins=bins,
-                                     guess=self.p0,
-                                     fit_func=self.GND)
+        if len(bins)>1:
+            super(GND_fit,self).__call__(data=data,
+                                         bins=bins,
+                                         guess=self.p0,
+                                         fit_func=self.GND)
 
     def plot(self,axis,title,xlabel,ylabel,res=True,fit=True):
-        axis.hist(self.data, self.bins, align='left', facecolor='green')
+        axis.hist(self.data, self.bins, align='mid', facecolor='green')
         axis.set_xlabel(xlabel)
         axis.set_ylabel(ylabel)
         axis.set_title(title)
@@ -230,13 +231,29 @@ class gauss_fit(fitting):
         self.gauss1 = gauss
         self.p0 = [1, np.mean(data), np.std(data)]
         # First guess
-        super(gauss_fit,self).__call__(data=data,
-                                       bins=bins,
-                                       guess=self.p0,
-                                       fit_func=self.gauss1)
+        p_vec=[]
+        if isinstance(bins,list):
+            bin_range = np.arange(bins[0],bins[1]+1)
+            for i in bin_range:
+                super(gauss_fit,self).__call__(data=data,
+                                               bins=i,
+                                               guess=self.p0,
+                                               fit_func=self.gauss1)
+                p_vec.append(self.p)
+                argmax_p = np.argmax(p_vec)
+
+            super(gauss_fit,self).__call__(data=data,
+                                           bins=bin_range[argmax_p],
+                                           guess=self.p0,
+                                           fit_func=self.gauss1)
+        else:
+            super(gauss_fit,self).__call__(data=data,
+                                           bins=bins,
+                                           guess=self.p0,
+                                           fit_func=self.gauss1)
 
     def plot(self,axis,title,xlabel,ylabel,res=True,fit=True):
-        axis.hist(self.data, self.bins, align='left', facecolor='green', edgecolor='white', linewidth=0.5)
+        axis.hist(self.data, self.bins, align='mid', facecolor='green', edgecolor='white', linewidth=0.5)
         axis.set_xlabel(xlabel)
         axis.set_ylabel(ylabel)
         axis.set_title(title)
