@@ -186,7 +186,7 @@ class TOF_compute(object):
         return timestamp_v
 
 
-    def __call__(self, event, method):
+    def __call__(self, event, method, mean):
         t_stamp_v = np.array([]).reshape(0,self.n_sipms)
         ring_dim  = self.Matrix_O.shape
         TOF       = np.array([])
@@ -231,7 +231,12 @@ class TOF_compute(object):
             gamma2_tdc = 0
 
         # Get rid of singles
-        TOF_p = (gamma1_tdc - gamma2_tdc)/2.0
+        if mean == 0:
+            TOF_p = (gamma1_tdc - gamma2_tdc)/2.0
+        else:
+            gamma1_tdc = np.mean(np.ma.sort(timestamp_M[Xd_sel_1D])[0:mean])
+            gamma2_tdc = np.mean(np.ma.sort(timestamp_M[Xe_sel_1D])[0:mean])
+            TOF_p = (gamma1_tdc - gamma2_tdc)/2.0
 
         selec_cond = np.logical_not(np.isnan(TOF_p)) and (Xd_ener>self.TE_E[0]) and (Xd_ener<self.TE_E[1]) \
                      and (Xe_ener>self.TE_E[0]) and (Xe_ener<self.TE_E[1])
@@ -253,24 +258,18 @@ if __name__ == '__main__':
     data = SIM_CONT.data
     L1_Slice, Matrix_I, Matrix_O, topo = DAQ.SiPM_Mapping(data,data['L1']['map_style'])
 
-    # Basic function test
-    # TDC = TOF_compute("/volumedisk0/home/paolafer/vicente/",name+"."+str(i).zfill(3)+".pet.h5",
-    #                   SIPM = SIPM, Matrix_O = Matrix_O, time_window = 10000,
-    #                   TE_TDC = 1, TE_E = [1000,1600], time_bin = time_bin)
-    # def TOF_comp_wrapper(args):
-    #     return TDC(*args)
-    # TOF_comp_wrapper([10,"convolution"])
-
-
     SIPM = {'n_sipms':3500, 'first_sipm':1000, 'tau_sipm':[100,15000]}
     # Rise time constant limited by external elements (cabling, ASCI impedance)
     # 100 ps is a rough estimation based on crosstalk limit due to feedtrough design
     # Fall time constant is realistic, based on bibliography and measurements
 
-    TE_range = [1.5,2.0]
+    # GENERAL PARAMETERS
+    TE_range = [0.25]
     n_files = 12
     time_bin = 5
     TOF_TE_TDC = []
+    mean = 10
+    cores = 18
 
     name = "petit_ring_tof_high_stat"
     path = "/volumedisk0/home/paolafer/vicente/"
@@ -294,13 +293,11 @@ if __name__ == '__main__':
             def TOF_comp_wrapper(args):
                 return TDC(*args)
 
-            TE = 1   #np.arange(1,4,0.5)
-
-            #TOF_comp_wrapper(100)
 
             pool_size = mp.cpu_count()
-            pool = mp.Pool(processes=18)
-            pool_output = pool.map(TOF_comp_wrapper, zip([i for i in range(event_min,event_max+1)],it.repeat("conv")))
+            pool = mp.Pool(processes=cores)
+            pool_output = pool.map(TOF_comp_wrapper, zip([i for i in range(event_min,event_max+1)],
+                                                     it.repeat("conv"), it.repeat(mean)))
             #time_window, TE_TDC, ev_range, TE_E
             pool.close()
             pool.join()
@@ -319,7 +316,7 @@ if __name__ == '__main__':
 
 
     os.chdir("/volumedisk0/home/viherbos/DAQ_data/")
-    with pd.HDFStore("TOF_15_2.h5",complevel=9, complib='zlib') as store:
+    with pd.HDFStore("TOF_025_mean.h5",complevel=9, complib='zlib') as store:
         TE_range = pd.DataFrame(data=TE_range)
         TOF_data = pd.DataFrame(data=TOF_TE_TDC)
         store.put('TE_range',TE_range)

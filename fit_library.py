@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.stats import chisquare
+from scipy.stats import chi2
 
 def gauss(x, *param):
     return param[0] * np.exp(-(x-param[1])**2/(2.*param[2]**2))
@@ -231,7 +232,7 @@ class gauss_fit(fitting):
         self.gauss1 = gauss
         self.p0 = [1, np.mean(data), np.std(data)]
         # First guess
-        p_vec=[]
+        xi2_vec=[]
         if isinstance(bins,list):
             bin_range = np.arange(bins[0],bins[1]+1)
             for i in bin_range:
@@ -239,11 +240,11 @@ class gauss_fit(fitting):
                                                bins=i,
                                                guess=self.p0,
                                                fit_func=self.gauss1)
-                p_vec.append(self.p)
-                argmax_p = np.argmax(p_vec)
+                xi2_vec.append(self.xi2)
+                argmin_xi2 = np.argmin(xi2_vec)
 
             super(gauss_fit,self).__call__(data=data,
-                                           bins=bin_range[argmax_p],
+                                           bins=bin_range[argmin_xi2],
                                            guess=self.p0,
                                            fit_func=self.gauss1)
         else:
@@ -264,7 +265,8 @@ class gauss_fit(fitting):
                                      '$\sigma$=%0.3f (+/- %0.3f) \n'+
                                      'FWHM=%0.3f (+/- %0.3f) \n'+\
                                      'Res=%0.3f%% (+/- %0.3f) \n'+\
-                                     'chi2=%0.3f \n'+'p=%0.3f') % \
+                                     'chi2=%0.3f \n'+'chi2inv_95=%0.3f \n'+\
+                                     'p=%0.3f') % \
                                         (self.coeff[1] , self.perr[1],
                                          np.absolute(self.coeff[2]) , self.perr[2],
                                          2.35*np.absolute(self.coeff[2]),
@@ -274,6 +276,7 @@ class gauss_fit(fitting):
                                          np.sqrt((self.perr[2]/self.coeff[2])**2+
                                                  (self.perr[1]/self.coeff[1])**2),
                                          self.xi2,
+                                         chi2.ppf(0.95,len(self.bin_centers)-2-1),
                                          self.p
                                         )
                                       ),
@@ -288,12 +291,14 @@ class gauss_fit(fitting):
                 axis.text(0.95,0.95, (('$\mu$=%0.3f (+/- %0.3f) \n'+\
                                      '$\sigma$=%0.3f (+/- %0.3f) \n'+
                                      'FWHM=%0.3f (+/- %0.3f) \n'+\
-                                     'chi2=%0.3f \n'+'p=%0.3f') % \
+                                     'chi2=%0.3f \n'+'chi2inv_95=%0.3f \n'+\
+                                     'p=%0.3f') % \
                                         (self.coeff[1], self.perr[1],
                                          np.absolute(self.coeff[2]), self.perr[2],
                                          2.35*np.absolute(self.coeff[2]),
                                          2.35*np.absolute(self.perr[2]),
                                          self.xi2,
+                                         chi2.ppf(0.95,len(self.bin_centers)-2-1),
                                          self.p)),
                                          fontsize=8,
                                          verticalalignment='top',
