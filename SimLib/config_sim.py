@@ -32,7 +32,9 @@ class SIM_DATA(object):
                                         'n_files' : [0,1,2,3,4,5,6,7,10],
                                         'n_events': 100000},
 
-                        'SIPM'        :{'size'        :[1,6,6]},
+                        'SIPM'        :{'size'        :[1,6,6],
+                                        'n_sipms'     :3500,
+                                        'first_sipm'  :1000},
 
                         'TOPOLOGY'    :{'radius_int'   :0,
                                         'radius_ext'   :165,

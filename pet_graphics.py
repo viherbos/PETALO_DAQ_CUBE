@@ -273,16 +273,16 @@ class graphs_update(object):
            MU_LIN=True,
            TH=0
          )
-        widget.opts['distance']=550
-        widget2.opts['distance']=550
+        self.widget.opts['distance']=550
+        self.widget2.opts['distance']=550
 
         t_recons = GLTextItem( X=20,Y=0,Z=0,text="RECONS "+str(self.event),size=8)
         t_TE = GLTextItem( X=5,Y=0,Z=0,text="TE "+str(self.event),size=8)
 
-        t_recons.setGLViewWidget(widget2)
-        widget2.addItem(t_recons)
-        t_TE.setGLViewWidget(widget)
-        widget.addItem(t_TE)
+        t_recons.setGLViewWidget(self.widget2)
+        self.widget2.addItem(t_recons)
+        t_TE.setGLViewWidget(self.widget)
+        self.widget.addItem(t_TE)
 
         self.widget.update()
         self.widget2.update()
@@ -290,6 +290,40 @@ class graphs_update(object):
 
     def event_update(self):
         self.event = text.value()
+
+
+
+def data_graph(SIM_CONT,data_TE,data_recons,positions,g_opt):
+    Qtapp  = pg.QtGui.QApplication([])
+    window = QtGui.QWidget()
+
+    text = QtGui.QSpinBox()
+    text.setRange(0,99999)
+    btn = QtGui.QPushButton('SHOW EVENT')
+    widget = gl.GLViewWidget()
+    widget2 = gl.GLViewWidget()
+    graph = graphs_update(SIM_CONT,Qtapp,widget,widget2,text,
+                                 data_TE,data_recons,positions,g_opt)
+
+    layout = QtGui.QGridLayout()
+    window.setLayout(layout)
+    layout.addWidget(text,   0, 0, 1, 1)
+    layout.addWidget(btn,    0, 1, 1, 3)
+    layout.addWidget(widget, 1, 0, 1, 4)
+    layout.addWidget(widget2,2, 0, 1, 4)
+
+    window.resize(768,1024)
+    graph.response()
+
+
+    # Signals connection
+    btn.clicked.connect(graph.response)
+    text.valueChanged.connect(graph.event_update)
+
+    window.show()
+
+    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+        QtGui.QApplication.instance().exec_()
 
 
 
