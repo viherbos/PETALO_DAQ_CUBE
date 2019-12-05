@@ -99,11 +99,11 @@ if __name__ == '__main__':
 
     #path      = "/mnt/715c6d30-57c4-4aed-a982-551291d8f848/NEUTRINOS/"
     path = "/home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/"
-    data_file = "MOVIE_DATA.h5"
+    data_file = "MOVIE_DATA_batch1.h5"
     json_file = "CUBE.json"
 
     A = Event_Handler(path, data_file, json_file)
-    DATA = A(17)
+    DATA = A(5)
 
 
     # GRAPHS
