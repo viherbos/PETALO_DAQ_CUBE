@@ -5,6 +5,10 @@ import sys
 import time
 import json
 import pet_graphics as petg
+import pyqtgraph as pg
+import pyqtgraph.opengl as gl
+from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
+from pyqtgraph.Qt import QtCore, QtGui
 
 
 class Event_Handler(object):
@@ -99,25 +103,34 @@ if __name__ == '__main__':
 
     #path      = "/mnt/715c6d30-57c4-4aed-a982-551291d8f848/NEUTRINOS/"
     path = "/home/viherbos/DAQ_DATA/NEUTRINOS/PETit-ring/7mm_pitch/"
-    data_file = "MOVIE_DATA_batch1.h5"
+    data_file = "MOVIE_DATA_rev.h5"
     json_file = "CUBE.json"
 
     A = Event_Handler(path, data_file, json_file)
-    DATA = A(5)
+    DATA = A(0)
 
 
     # GRAPHS
     SIM_CONT = SIM_CONT(A.param)
 
 
-    graph = petg.data_graph( SIM_CONT,
-                                DATA['DATA_B1'].reshape(1,-1),
-                                DATA['DATA_B2'].reshape(1,-1),
-                                A.sensor_positions,
-                                {'photons_id':True,'sipm_id':False})
+    Qtapp  = pg.QtGui.QApplication([])
+    window = QtGui.QWidget()
 
-    graph1 = petg.data_graph( SIM_CONT,
-                                DATA['DATA_A1'].reshape(1,-1),
-                                DATA['DATA_A2'].reshape(1,-1),
+    graph = petg.data_graph( Qtapp, window, SIM_CONT,
+                                DATA['DATA_B1'].reshape(1,-1),
                                 A.sensor_positions,
-                                {'photons_id':True,'sipm_id':False})
+                                {'photons_id':True,'sipm_id':False},'DATA_B1 ')
+
+    window2 = QtGui.QWidget()
+
+    graph1 = petg.data_graph( Qtapp, window2, SIM_CONT,
+                                DATA['DATA_A1'].reshape(1,-1),
+                                A.sensor_positions,
+                                {'photons_id':True,'sipm_id':False},'DATA_A1 ')
+
+    window.show()
+    window2.show()
+
+    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+        QtGui.QApplication.instance().exec_()

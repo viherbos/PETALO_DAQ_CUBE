@@ -247,18 +247,15 @@ class DET_SHOW(object):
 
 
 class graphs_update(object):
-    def __init__(self,SIM_CONT,Qtapp,widget,widget2,text,data_TE,data_recons,
-                 positions,g_opt):
+    def __init__(self,SIM_CONT,Qtapp,widget,text,data_TE,positions,g_opt,data_set):
         self.event = text.value()
         self.Qtapp = Qtapp
         self.widget = widget
-        self.widget2 = widget2
         self.positions = positions
         self.data_TE = data_TE
-        self.data_recons = data_recons
         self.B = DET_SHOW(SIM_CONT.data,self.Qtapp,self.widget)
-        self.B2 = DET_SHOW(SIM_CONT.data,self.Qtapp,self.widget2)
         self.g_opt = g_opt
+        self.data_set = data_set
 
     def response(self):
         self.B( self.positions, self.data_TE, event=self.event,
@@ -267,173 +264,147 @@ class graphs_update(object):
            MU_LIN=True,
            TH=0
          )
-        self.B2( self.positions, self.data_recons, event=self.event,
-           ident=self.g_opt['sipm_id'],
-           show_photons=self.g_opt['photons_id'],
-           MU_LIN=True,
-           TH=0
-         )
         self.widget.opts['distance']=550
-        self.widget2.opts['distance']=550
-
-        t_recons = GLTextItem( X=20,Y=0,Z=0,text="RECONS "+str(self.event),size=8)
-        t_TE = GLTextItem( X=5,Y=0,Z=0,text="TE "+str(self.event),size=8)
-
-        t_recons.setGLViewWidget(self.widget2)
-        self.widget2.addItem(t_recons)
+        t_TE = GLTextItem( X=5,Y=0,Z=0,text=self.data_set+str(self.event),size=8)
         t_TE.setGLViewWidget(self.widget)
         self.widget.addItem(t_TE)
-
         self.widget.update()
-        self.widget2.update()
-
 
     def event_update(self):
         self.event = text.value()
 
 
 
-def data_graph(SIM_CONT,data_TE,data_recons,positions,g_opt):
-    Qtapp  = pg.QtGui.QApplication([])
-    window = QtGui.QWidget()
+def data_graph(Qtapp,window,SIM_CONT,data_TE,positions,g_opt,data_set):
 
     text = QtGui.QSpinBox()
     text.setRange(0,99999)
     btn = QtGui.QPushButton('SHOW EVENT')
     widget = gl.GLViewWidget()
-    widget2 = gl.GLViewWidget()
-    graph = graphs_update(SIM_CONT,Qtapp,widget,widget2,text,
-                                 data_TE,data_recons,positions,g_opt)
+    graph  = graphs_update(SIM_CONT,Qtapp,widget,text,data_TE,positions,g_opt,data_set)
 
     layout = QtGui.QGridLayout()
     window.setLayout(layout)
     layout.addWidget(text,   0, 0, 1, 1)
     layout.addWidget(btn,    0, 1, 1, 3)
     layout.addWidget(widget, 1, 0, 1, 4)
-    layout.addWidget(widget2,2, 0, 1, 4)
 
-    window.resize(768,1024)
+    window.resize(700,600)
     graph.response()
-
-
     # Signals connection
     btn.clicked.connect(graph.response)
     text.valueChanged.connect(graph.event_update)
 
-    window.show()
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
 
 
-
-if __name__ == '__main__':
-
-    g_opt = {}
-    # Argument parser for config file name
-    parser = argparse.ArgumentParser(description='PETALO GRAPHICS.')
-    parser.add_argument("-f", "--data_file", action="store_true",
-                        help="Show events with configuration stored in json file")
-    parser.add_argument('arg1', metavar='data_file', nargs='?', help='')
-
-    parser.add_argument("-a", "--window_A", action="store_true",
-                        help="WINDOW A")
-    parser.add_argument('arg2', metavar='window A', nargs='?', help='')
-
-    parser.add_argument("-b", "--window_B", action="store_true",
-                        help="WINDOW B")
-    parser.add_argument('arg3', metavar='window B', nargs='?', help='')
-
-    parser.add_argument("-j", "--json_file", action="store_true",
-                        help="Json File")
-    parser.add_argument('arg4', metavar='Json file', nargs='?', help='')
-
-    parser.add_argument("-p", "--show_photons",action="store_true",
-                        help="Show Number of Photons")
-
-    parser.add_argument("-s", "--show_sipmID",action="store_true",
-                        help="Show Number of Photons")
-
-
-    args = parser.parse_args()
-
-    if args.data_file:
-        file_name = ''.join(args.arg1)
-    else:
-        file_name = ""
-
-    if args.window_A:
-        window_A = ''.join(args.arg2)
-    else:
-        window_A = "MC_TE"
-
-    if args.window_B:
-        window_B = ''.join(args.arg3)
-    else:
-        window_B = "MC_recons"
-
-    if args.json_file:
-        json_file = ''.join(args.arg4)
-    else:
-        json_file = "test"
-
-    if args.show_photons:
-        g_opt['photons_id'] = True
-    else:
-        g_opt['photons_id'] = False
-
-    if args.show_sipmID:
-        g_opt['sipm_id'] = True
-    else:
-        g_opt['sipm_id'] = False
-
-
-
-    config_file = json_file + ".json"
-
-    SIM_CONT=conf.SIM_DATA(filename=config_file ,read=True)
-
-    path     = SIM_CONT.data['ENVIRONMENT']['path_to_files']
-
-    #filename = SIM_CONT.data['ENVIRONMENT']['MC_out_file_name']+'.'+str(file_n).zfill(3)
-    #filename = "./VER5/DAQ_OF5mm_test_REAL"
-
-    positions = np.array(pd.read_hdf(path+file_name+".h5",key='sensor_positions'))
-    data_TE = np.array(pd.read_hdf(path+file_name+".h5",key=window_A), dtype = 'int32')
-    data_recons = np.array(pd.read_hdf(path+file_name+".h5",key=window_B), dtype = 'int32')
-    #data_TE = np.array(pd.read_hdf(path+filename+".h5",key='MC'), dtype = 'int32')
-    #data_recons = np.array(pd.read_hdf(path+filename+".h5",key='MC'), dtype = 'int32')
-
-
-    Qtapp  = pg.QtGui.QApplication([])
-    window = QtGui.QWidget()
-
-    text = QtGui.QSpinBox()
-    text.setRange(0,99999)
-    btn = QtGui.QPushButton('SHOW EVENT')
-    widget = gl.GLViewWidget()
-    widget2 = gl.GLViewWidget()
-    graph = graphs_update(SIM_CONT,Qtapp,widget,widget2,text,
-                                 data_TE,data_recons,positions,g_opt)
-
-    layout = QtGui.QGridLayout()
-    window.setLayout(layout)
-    layout.addWidget(text,   0, 0, 1, 1)
-    layout.addWidget(btn,    0, 1, 1, 3)
-    layout.addWidget(widget, 1, 0, 1, 4)
-    layout.addWidget(widget2,2, 0, 1, 4)
-
-    window.resize(768,1024)
-    graph.response()
-
-
-    # Signals connection
-    btn.clicked.connect(graph.response)
-    text.valueChanged.connect(graph.event_update)
-
-    window.show()
-
-
-
-    if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
-        QtGui.QApplication.instance().exec_()
+#
+# if __name__ == '__main__':
+#
+#     g_opt = {}
+#     # Argument parser for config file name
+#     parser = argparse.ArgumentParser(description='PETALO GRAPHICS.')
+#     parser.add_argument("-f", "--data_file", action="store_true",
+#                         help="Show events with configuration stored in json file")
+#     parser.add_argument('arg1', metavar='data_file', nargs='?', help='')
+#
+#     parser.add_argument("-a", "--window_A", action="store_true",
+#                         help="WINDOW A")
+#     parser.add_argument('arg2', metavar='window A', nargs='?', help='')
+#
+#     parser.add_argument("-b", "--window_B", action="store_true",
+#                         help="WINDOW B")
+#     parser.add_argument('arg3', metavar='window B', nargs='?', help='')
+#
+#     parser.add_argument("-j", "--json_file", action="store_true",
+#                         help="Json File")
+#     parser.add_argument('arg4', metavar='Json file', nargs='?', help='')
+#
+#     parser.add_argument("-p", "--show_photons",action="store_true",
+#                         help="Show Number of Photons")
+#
+#     parser.add_argument("-s", "--show_sipmID",action="store_true",
+#                         help="Show Number of Photons")
+#
+#
+#     args = parser.parse_args()
+#
+#     if args.data_file:
+#         file_name = ''.join(args.arg1)
+#     else:
+#         file_name = ""
+#
+#     if args.window_A:
+#         window_A = ''.join(args.arg2)
+#     else:
+#         window_A = "MC_TE"
+#
+#     if args.window_B:
+#         window_B = ''.join(args.arg3)
+#     else:
+#         window_B = "MC_recons"
+#
+#     if args.json_file:
+#         json_file = ''.join(args.arg4)
+#     else:
+#         json_file = "test"
+#
+#     if args.show_photons:
+#         g_opt['photons_id'] = True
+#     else:
+#         g_opt['photons_id'] = False
+#
+#     if args.show_sipmID:
+#         g_opt['sipm_id'] = True
+#     else:
+#         g_opt['sipm_id'] = False
+#
+#
+#
+#     config_file = json_file + ".json"
+#
+#     SIM_CONT=conf.SIM_DATA(filename=config_file ,read=True)
+#
+#     path     = SIM_CONT.data['ENVIRONMENT']['path_to_files']
+#
+#     #filename = SIM_CONT.data['ENVIRONMENT']['MC_out_file_name']+'.'+str(file_n).zfill(3)
+#     #filename = "./VER5/DAQ_OF5mm_test_REAL"
+#
+#     positions = np.array(pd.read_hdf(path+file_name+".h5",key='sensor_positions'))
+#     data_TE = np.array(pd.read_hdf(path+file_name+".h5",key=window_A), dtype = 'int32')
+#     data_recons = np.array(pd.read_hdf(path+file_name+".h5",key=window_B), dtype = 'int32')
+#     #data_TE = np.array(pd.read_hdf(path+filename+".h5",key='MC'), dtype = 'int32')
+#     #data_recons = np.array(pd.read_hdf(path+filename+".h5",key='MC'), dtype = 'int32')
+#
+#
+#     Qtapp  = pg.QtGui.QApplication([])
+#     window = QtGui.QWidget()
+#
+#     text = QtGui.QSpinBox()
+#     text.setRange(0,99999)
+#     btn = QtGui.QPushButton('SHOW EVENT')
+#     widget = gl.GLViewWidget()
+#     widget2 = gl.GLViewWidget()
+#     graph = graphs_update(SIM_CONT,Qtapp,widget,widget2,text,
+#                                  data_TE,data_recons,positions,g_opt)
+#
+#     layout = QtGui.QGridLayout()
+#     window.setLayout(layout)
+#     layout.addWidget(text,   0, 0, 1, 1)
+#     layout.addWidget(btn,    0, 1, 1, 3)
+#     layout.addWidget(widget, 1, 0, 1, 4)
+#     layout.addWidget(widget2,2, 0, 1, 4)
+#
+#     window.resize(768,1024)
+#     graph.response()
+#
+#
+#     # Signals connection
+#     btn.clicked.connect(graph.response)
+#     text.valueChanged.connect(graph.event_update)
+#
+#     window.show()
+#
+#
+#
+#     if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
+#         QtGui.QApplication.instance().exec_()
